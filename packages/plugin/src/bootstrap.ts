@@ -22,5 +22,5 @@ export function generateBootstrapScript(opts: ResolvedOpts, projectRoot: string,
 }
 
 export function generateMountScript(): string {
-  return `import { mountDaub } from '/@daub/overlay'; if (import.meta.env.DEV) { mountDaub(window.__DAUB_CONFIG__); }`;
+  return `import { mountDaub } from '/@daub/overlay'; mountDaub(window.__DAUB_CONFIG__);`;
 }

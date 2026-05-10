@@ -94,20 +94,30 @@ function resolveReact(element: HTMLElement): SourceLocation | null {
 
   let fiber = (element as any)[fiberKey];
 
-  // Walk the fiber .return chain looking for _debugSource
+  // Walk the fiber .return chain
   while (fiber) {
+    // React 17/18: _debugSource on fibers
     const debugSource = fiber._debugSource;
     if (debugSource) {
-      const fileName: string = debugSource.fileName ?? '';
-      const lineNumber: number = debugSource.lineNumber ?? 0;
-      const columnNumber: number = debugSource.columnNumber ?? 0;
-      const componentName = getComponentName(fiber);
-
       return {
-        file: normalizePath(fileName),
-        line: lineNumber,
-        column: columnNumber,
-        componentName,
+        file: normalizePath(debugSource.fileName ?? ''),
+        line: debugSource.lineNumber ?? 0,
+        column: debugSource.columnNumber ?? 0,
+        componentName: getComponentName(fiber),
+        framework: 'react',
+      };
+    }
+
+    // React 19+: _debugSource removed. Use _debugStack (formatted stack trace)
+    // and _debugOwner (parent component fiber) for component name.
+    // Walk up to find the nearest function component with a _debugStack.
+    if (fiber._debugStack && typeof fiber.type === 'function' && fiber.type.name) {
+      const parsed = parseDebugStack(fiber._debugStack);
+      return {
+        file: normalizePath(parsed.file),
+        line: parsed.line,
+        column: parsed.column,
+        componentName: fiber.type.name,
         framework: 'react',
       };
     }
@@ -115,7 +125,56 @@ function resolveReact(element: HTMLElement): SourceLocation | null {
     fiber = fiber.return;
   }
 
+  // React 19 fallback: walk fiber tree for any named component
+  fiber = (element as any)[fiberKey];
+  while (fiber) {
+    if (typeof fiber.type === 'function' && fiber.type.name) {
+      return {
+        file: '',
+        line: 0,
+        column: 0,
+        componentName: fiber.type.name,
+        framework: 'react',
+      };
+    }
+    if (typeof fiber.type === 'object' && fiber.type?.displayName) {
+      return {
+        file: '',
+        line: 0,
+        column: 0,
+        componentName: fiber.type.displayName,
+        framework: 'react',
+      };
+    }
+    fiber = fiber.return;
+  }
+
   return null;
+}
+
+// Parse React 19's _debugStack which is an Error-like object or string
+function parseDebugStack(stack: any): { file: string; line: number; column: number } {
+  const empty = { file: '', line: 0, column: 0 };
+  const str = typeof stack === 'string' ? stack : stack?.stack ?? String(stack);
+  if (!str) return empty;
+
+  // Match stack frame patterns like:
+  //   at ComponentName (http://localhost:5173/src/App.tsx?t=123:12:5)
+  //   at http://localhost:5173/src/App.tsx:12:5
+  const lines = str.split('\n');
+  for (const line of lines) {
+    // Match file path with line:col — look for /src/ patterns
+    const match = line.match(/(?:https?:\/\/[^/]+)?(\/[^?:]+(?:\.[tj]sx?))[^:]*:(\d+):(\d+)/);
+    if (match) {
+      return {
+        file: match[1],
+        line: parseInt(match[2], 10),
+        column: parseInt(match[3], 10),
+      };
+    }
+  }
+
+  return empty;
 }
 
 // ---------------------------------------------------------------------------

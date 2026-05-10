@@ -16,9 +16,7 @@ export function captureStyles(element: HTMLElement): CapturedStyles {
   const computed = getComputedStyle(element);
   const result = {} as CapturedStyles;
   for (const key of STYLE_KEYS) {
-    result[key] = computed.getPropertyValue(
-      key.replace(/([A-Z])/g, '-$1').toLowerCase()
-    );
+    result[key] = (computed as any)[key] ?? '';
   }
   return result;
 }

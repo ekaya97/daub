@@ -112,11 +112,17 @@ export class Picker {
     e.preventDefault();
     e.stopPropagation();
 
-    // composedPath()[0] pierces shadow roots (v2 F3)
-    const target = (e.composedPath()[0] as HTMLElement) ?? this.currentTarget;
-    if (!target || target === document.body || target === document.documentElement) return;
+    // Use currentTarget from mousemove (identified via elementFromPoint).
+    // composedPath()[0] would return the overlay itself since that's the click target.
+    // For shadow DOM piercing (v2 F3), we hide the overlay and re-probe on click.
+    this.overlay.style.display = 'none';
+    const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    this.overlay.style.display = '';
 
-    this.onSelect(target);
+    const selected = target ?? this.currentTarget;
+    if (!selected || selected === document.body || selected === document.documentElement) return;
+
+    this.onSelect(selected);
     this.unmount();
   }
 
