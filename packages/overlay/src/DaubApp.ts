@@ -7,6 +7,9 @@ import { Picker } from './Picker.js';
 import { Panel } from './Panel.js';
 import { resolveSource } from './source.js';
 import { initScreenCapture, captureElement, releaseStream } from './capture.js';
+import { copyToClipboard } from './clipboard.js';
+import { showToast } from './Toast.js';
+import { serializeToMarkdown } from '@daub/core';
 
 export class DaubApp {
   private store = createStore();
@@ -140,16 +143,26 @@ export class DaubApp {
     releaseStream();
   }
 
-  private handleCopy(): void {
-    // Phase 5: clipboard + disk write will be wired here
+  private async handleCopy(): Promise<void> {
+    const ctx = this.store.elementContext;
+    if (!ctx) return;
+
+    // Gather final state
     const annotated = this.panel?.getAnnotatedScreenshot();
-    if (this.store.elementContext) {
-      this.store.elementContext.screenshotAnnotated = annotated ?? null;
+    if (annotated) ctx.screenshotAnnotated = annotated;
+
+    const sessionId = crypto.randomUUID().replace(/-/g, '');
+    const markdown = serializeToMarkdown(ctx, sessionId);
+
+    console.log('[Daub] Copying to clipboard...', { sessionId });
+
+    const result = await copyToClipboard(ctx, markdown, sessionId, this.config);
+
+    if (result.success) {
+      showToast(this.shadow, 'Copied! Paste into Claude Code.', 'success');
+    } else {
+      showToast(this.shadow, result.error ?? 'Copy failed.', 'error');
     }
-    console.log('[Daub] Copy triggered (clipboard wiring in Phase 5)', {
-      hasAnnotations: !!annotated,
-      context: this.store.elementContext,
-    });
   }
 
   private onCancel(): void {

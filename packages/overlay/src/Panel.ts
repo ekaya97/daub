@@ -2,7 +2,7 @@ import type { DaubConfig, ElementContext } from '@daub/core';
 import { CLOSE_ICON, SWAP_ICON, HISTORY_ICON } from './icons.js';
 import { AnnotateTab } from './tabs/AnnotateTab.js';
 import { EditTab } from './tabs/EditTab.js';
-import { OutputTabStub } from './tabs/OutputTabStub.js';
+import { OutputTab } from './tabs/OutputTab.js';
 
 type TabName = 'annotate' | 'edit' | 'output';
 
@@ -21,7 +21,7 @@ export class Panel {
 
   private annotateTab: AnnotateTab | null = null;
   private editTab: EditTab | null = null;
-  private outputTab: OutputTabStub | null = null;
+  private outputTab: OutputTab | null = null;
 
   private liveElement: HTMLElement | null = null;
   private closeHandler: (() => void) | null = null;
@@ -245,7 +245,15 @@ export class Panel {
         break;
       }
       case 'output': {
-        this.outputTab = new OutputTabStub(this.tabContent);
+        // Update context with latest annotations / edits before showing output
+        if (this.annotateTab?.hasAnnotations()) {
+          ctx.screenshotAnnotated = this.annotateTab.getAnnotatedImage();
+        }
+        if (this.editTab) {
+          ctx.cssDelta = this.editTab.getCssDelta();
+        }
+        const sessionId = crypto.randomUUID().replace(/-/g, '');
+        this.outputTab = new OutputTab(this.tabContent, ctx, sessionId);
         this.currentTabInstance = this.outputTab;
         break;
       }
