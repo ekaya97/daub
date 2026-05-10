@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@daub/core": "workspace:*",
-    "dom-to-image-more": "^3.7.2",
     "idb": "^8.0.0"
   },
   "publishConfig": {

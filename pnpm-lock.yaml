@@ -79,9 +79,6 @@ importers:
       '@daub/core':
         specifier: workspace:*
         version: link:../core
-      dom-to-image-more:
-        specifier: ^3.7.2
-        version: 3.7.2
       idb:
         specifier: ^8.0.0
         version: 8.0.3
@@ -1304,9 +1301,6 @@ packages:
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
-
-  dom-to-image-more@3.7.2:
-    resolution: {integrity: sha512-uQf+pHv6eQhgfI8t2bFuinV0KsPyT8TZgCLwcSU8uBVgN9v6leb0mMpvp6HQAlAcplP3NCcGjxbdqef6pTzvmw==}
 
   electron-to-chromium@1.5.353:
     resolution: {integrity: sha512-kOrWphBi8TOZyiJZqsgqIle0lw+tzmnQK83pV9dZUd01Nm2POECSyFQMAuarzZdYqQW7FH9RaYOuaRo3h+bQ3w==}
@@ -3240,8 +3234,6 @@ snapshots:
   dir-glob@3.0.1:
     dependencies:
       path-type: 4.0.0
-
-  dom-to-image-more@3.7.2: {}
 
   electron-to-chromium@1.5.353: {}
 
