@@ -76,6 +76,9 @@ importers:
 
   packages/overlay:
     dependencies:
+      '@daub/core':
+        specifier: workspace:*
+        version: link:../core
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1

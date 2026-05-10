@@ -1,4 +1,5 @@
 import type { DaubConfig } from '@daub/core';
+import { DaubApp } from './DaubApp.js';
 
 export function mountDaub(config: DaubConfig): void {
   if (document.getElementById('__daub_host__')) return;
@@ -9,12 +10,8 @@ export function mountDaub(config: DaubConfig): void {
   document.body.appendChild(host);
 
   const shadow = host.attachShadow({ mode: 'open' });
-
-  // Phase 1 stub: log + placeholder
-  const el = document.createElement('div');
-  el.textContent = 'Daub';
-  el.style.cssText = 'display:none;';
-  shadow.appendChild(el);
+  const app = new DaubApp(shadow, config);
+  app.mount();
 
   console.log('[Daub] mounted', { position: config.position });
 }

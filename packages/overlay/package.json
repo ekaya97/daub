@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@daub/core": "workspace:*",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.0"
   },
