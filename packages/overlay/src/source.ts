@@ -161,9 +161,11 @@ function parseDebugStack(stack: any): { file: string; line: number; column: numb
   // Match stack frame patterns like:
   //   at ComponentName (http://localhost:5173/src/App.tsx?t=123:12:5)
   //   at http://localhost:5173/src/App.tsx:12:5
+  // Skip node_modules frames (e.g., react runtime, jsx-dev-runtime)
   const lines = str.split('\n');
   for (const line of lines) {
-    // Match file path with line:col — look for /src/ patterns
+    if (line.includes('node_modules')) continue;
+
     const match = line.match(/(?:https?:\/\/[^/]+)?(\/[^?:]+(?:\.[tj]sx?))[^:]*:(\d+):(\d+)/);
     if (match) {
       return {
