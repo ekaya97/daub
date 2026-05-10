@@ -79,9 +79,9 @@ importers:
       '@daub/core':
         specifier: workspace:*
         version: link:../core
-      html2canvas:
-        specifier: ^1.4.1
-        version: 1.4.1
+      dom-to-image-more:
+        specifier: ^3.7.2
+        version: 3.7.2
       idb:
         specifier: ^8.0.0
         version: 8.0.3
@@ -1186,10 +1186,6 @@ packages:
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
-  base64-arraybuffer@1.0.2:
-    resolution: {integrity: sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==}
-    engines: {node: '>= 0.6.0'}
-
   baseline-browser-mapping@2.10.29:
     resolution: {integrity: sha512-Asa2krT+XTPZINCS+2QcyS8WTkObE77RwkydwF7h6DmnKqbvlalz93m/dnphUyCa6SWSP51VgtEUf2FN+gelFQ==}
     engines: {node: '>=6.0.0'}
@@ -1278,9 +1274,6 @@ packages:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
 
-  css-line-break@2.1.0:
-    resolution: {integrity: sha512-FHcKFCZcAha3LwfVBhCQbW2nCNbkZXn7KVUJcsT5/P8YmfsVja0FMPJr0B903j/E69HUphKiV9iQArX8SDYA4w==}
-
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
@@ -1311,6 +1304,9 @@ packages:
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
+
+  dom-to-image-more@3.7.2:
+    resolution: {integrity: sha512-uQf+pHv6eQhgfI8t2bFuinV0KsPyT8TZgCLwcSU8uBVgN9v6leb0mMpvp6HQAlAcplP3NCcGjxbdqef6pTzvmw==}
 
   electron-to-chromium@1.5.353:
     resolution: {integrity: sha512-kOrWphBi8TOZyiJZqsgqIle0lw+tzmnQK83pV9dZUd01Nm2POECSyFQMAuarzZdYqQW7FH9RaYOuaRo3h+bQ3w==}
@@ -1491,10 +1487,6 @@ packages:
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
     engines: {node: '>=8'}
-
-  html2canvas@1.4.1:
-    resolution: {integrity: sha512-fPU6BHNpsyIhr8yyMpTLLxAbkaK8ArIBcmZIRiBLiDhjeqvXolaEmDGmELFuX9I4xDcaKKcJl+TKZLqruBbmWA==}
-    engines: {node: '>=8.0.0'}
 
   human-id@4.1.3:
     resolution: {integrity: sha512-tsYlhAYpjCKa//8rXZ9DqKEawhPoSytweBC2eNvcaDK+57RZLHGqNs3PZTQO6yekLFSuvA6AlnAfrw1uBvtb+Q==}
@@ -2032,9 +2024,6 @@ packages:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
 
-  text-segmentation@1.0.3:
-    resolution: {integrity: sha512-iOiPUo/BGnZ6+54OsWxZidGCsdU8YbE4PSpdPinp7DeMtUJNJBoJ/ouUSTJjHkh1KntHaltHl/gDs2FC4i5+Nw==}
-
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
     engines: {node: '>=0.8'}
@@ -2121,9 +2110,6 @@ packages:
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
-
-  utrie@1.0.2:
-    resolution: {integrity: sha512-1MLa5ouZiOmQzUbjbu9VmjLzn1QLXBhwpUa7kdLUQK+KQ5KA9I1vk5U4YHe/X2Ch7PYnJfWuWT+VbuxbGwljhw==}
 
   vite-node@3.2.4:
     resolution: {integrity: sha512-EbKSKh+bh1E1IFxeO0pg1n4dvoOTt0UDiXMd/qn++r98+jPO1xtJilvXldeuQ8giIB5IkpjCgMleHMNEsGH6pg==}
@@ -3158,8 +3144,6 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
-  base64-arraybuffer@1.0.2: {}
-
   baseline-browser-mapping@2.10.29: {}
 
   better-path-resolve@1.0.0:
@@ -3239,10 +3223,6 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  css-line-break@2.1.0:
-    dependencies:
-      utrie: 1.0.2
-
   csstype@3.2.3: {}
 
   debug@4.4.3:
@@ -3260,6 +3240,8 @@ snapshots:
   dir-glob@3.0.1:
     dependencies:
       path-type: 4.0.0
+
+  dom-to-image-more@3.7.2: {}
 
   electron-to-chromium@1.5.353: {}
 
@@ -3507,11 +3489,6 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   has-flag@4.0.0: {}
-
-  html2canvas@1.4.1:
-    dependencies:
-      css-line-break: 2.1.0
-      text-segmentation: 1.0.3
 
   human-id@4.1.3: {}
 
@@ -3984,10 +3961,6 @@ snapshots:
 
   term-size@2.2.1: {}
 
-  text-segmentation@1.0.3:
-    dependencies:
-      utrie: 1.0.2
-
   thenify-all@1.6.0:
     dependencies:
       thenify: 3.3.1
@@ -4068,10 +4041,6 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
-
-  utrie@1.0.2:
-    dependencies:
-      base64-arraybuffer: 1.0.2
 
   vite-node@3.2.4(jiti@2.7.0)(lightningcss@1.32.0):
     dependencies:
