@@ -79,24 +79,13 @@ export async function copyToClipboard(
     return { success: false, error: String(e) };
   });
 
-  // Clipboard write — use ClipboardItem with Promise values to preserve gesture (v2 B4)
-  const primaryDataUrl = ctx.screenshotAnnotated ?? ctx.screenshotAfter ?? ctx.screenshotBefore;
-
+  // Clipboard: write markdown text (not image) — Claude Code is a terminal that needs text.
+  // Images are saved to disk and referenced by path in the markdown.
   try {
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        'text/plain': Promise.resolve(new Blob([markdown], { type: 'text/plain' })),
-        'image/png': fetch(primaryDataUrl).then(r => r.blob()),
-      }),
-    ]);
+    await navigator.clipboard.writeText(markdown);
   } catch {
-    // Fallback: text only
-    try {
-      await navigator.clipboard.writeText(markdown);
-    } catch {
-      await writePromise;
-      return { success: false, error: 'Clipboard write failed. Use the markdown preview to copy manually.' };
-    }
+    await writePromise;
+    return { success: false, error: 'Clipboard write failed. Use the markdown preview to copy manually.' };
   }
 
   // Wait for disk write to finish
