@@ -4,6 +4,7 @@ import { createStore } from './state.js';
 import { applyStyles } from './styles.js';
 import { TriggerButton } from './TriggerButton.js';
 import { Picker } from './Picker.js';
+import { Panel } from './Panel.js';
 import { resolveSource } from './source.js';
 import { initScreenCapture, captureElement, releaseStream } from './capture.js';
 
@@ -11,6 +12,7 @@ export class DaubApp {
   private store = createStore();
   private trigger: TriggerButton;
   private picker: Picker | null = null;
+  private panel: Panel | null = null;
   private hasScreenCapture = false;
 
   constructor(
@@ -23,14 +25,39 @@ export class DaubApp {
   mount(): void {
     applyStyles(this.shadow);
     this.trigger.mount();
-    this.trigger.onClick(() => this.startPicking());
+    this.trigger.onClick(() => this.handleTriggerClick());
+
+    // Keyboard shortcut
+    document.addEventListener('keydown', this.boundKeyDown);
+  }
+
+  private boundKeyDown = (e: KeyboardEvent): void => {
+    // Escape: cancel picking or close panel
+    if (e.key === 'Escape') {
+      if (this.store.state === 'PANEL_OPEN') {
+        this.closePanel();
+      }
+      return;
+    }
+
+    // Configurable shortcut (default Alt+Shift+D)
+    if (matchesShortcut(e, this.config.shortcut)) {
+      e.preventDefault();
+      this.handleTriggerClick();
+    }
+  };
+
+  private handleTriggerClick(): void {
+    if (this.store.state === 'IDLE') {
+      this.startPicking();
+    } else if (this.store.state === 'PANEL_OPEN') {
+      this.closePanel();
+    }
   }
 
   // -- State transitions ----------------------------------------------------
 
   private async startPicking(): Promise<void> {
-    if (this.store.state !== 'IDLE') return;
-
     try {
       this.store.transition('PICKING');
       this.trigger.setActive(true);
@@ -85,24 +112,44 @@ export class DaubApp {
       this.store.elementContext = context;
       this.store.transition('PANEL_OPEN');
 
-      // Phase 2 stop-gap: log context, panel comes in Phase 3
       console.log('[Daub] Element captured:', {
         component: source?.componentName ?? element.tagName.toLowerCase(),
         file: source?.file ?? '(unknown)',
         line: source?.line ?? 0,
         tailwind: tailwind.join(' '),
-        styles: `${Object.keys(computed).length} properties`,
       });
-      console.log('[Daub] Full context:', context);
 
-      // Return to idle for now (panel will take over in Phase 3)
-      this.store.reset();
+      // Open panel
+      this.panel = new Panel(this.shadow, this.config);
+      this.panel.onClose(() => this.closePanel());
+      this.panel.onCopy(() => this.handleCopy());
+      this.panel.mount(context);
+
       this.trigger.setActive(false);
-      releaseStream();
     } catch (e) {
       console.error('[Daub] Capture failed:', e);
       this.onCancel();
     }
+  }
+
+  private closePanel(): void {
+    this.panel?.unmount();
+    this.panel = null;
+    this.store.reset();
+    this.trigger.setActive(false);
+    releaseStream();
+  }
+
+  private handleCopy(): void {
+    // Phase 5: clipboard + disk write will be wired here
+    const annotated = this.panel?.getAnnotatedScreenshot();
+    if (this.store.elementContext) {
+      this.store.elementContext.screenshotAnnotated = annotated ?? null;
+    }
+    console.log('[Daub] Copy triggered (clipboard wiring in Phase 5)', {
+      hasAnnotations: !!annotated,
+      context: this.store.elementContext,
+    });
   }
 
   private onCancel(): void {
@@ -113,11 +160,12 @@ export class DaubApp {
   }
 
   destroy(): void {
+    document.removeEventListener('keydown', this.boundKeyDown);
     this.trigger.unmount();
-    if (this.picker) {
-      this.picker.unmount();
-      this.picker = null;
-    }
+    this.picker?.unmount();
+    this.picker = null;
+    this.panel?.unmount();
+    this.panel = null;
     releaseStream();
     this.store.reset();
   }
@@ -142,4 +190,20 @@ function getDomPath(element: HTMLElement): string {
   }
 
   return parts.join(' > ');
+}
+
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const parts = shortcut.split('+');
+  const key = parts[parts.length - 1];
+  const needsAlt = parts.includes('Alt');
+  const needsShift = parts.includes('Shift');
+  const needsCtrl = parts.includes('Ctrl');
+  const needsMeta = parts.includes('Meta');
+  return (
+    e.key.toUpperCase() === key.toUpperCase() &&
+    e.altKey === needsAlt &&
+    e.shiftKey === needsShift &&
+    e.ctrlKey === needsCtrl &&
+    e.metaKey === needsMeta
+  );
 }
