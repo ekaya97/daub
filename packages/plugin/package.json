@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./overlay": {
+      "import": "./dist/overlay.js"
     }
   },
   "files": ["dist"],

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daub — Visual Context for AI-Assisted UI Development</title>
+  <style>
+    /* Dark theme matching the Daub overlay aesthetic */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #09090b; color: #e4e4e7; line-height: 1.6; }
+    a { color: #818cf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #18181b; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.9em; }
+    pre { background: #18181b; padding: 16px; border-radius: 8px; overflow-x: auto; border: 1px solid #27272a; }
+    pre code { background: none; padding: 0; }
+    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+
+    /* Hero */
+    .hero { padding: 80px 0 60px; text-align: center; }
+    .hero h1 { font-size: 48px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { font-size: 20px; color: #a1a1aa; margin-top: 16px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .hero .install { margin-top: 32px; }
+    .hero .install code { font-size: 16px; padding: 8px 16px; background: #18181b; border: 1px solid #27272a; }
+
+    /* Sections */
+    section { padding: 48px 0; border-top: 1px solid #27272a; }
+    section h2 { font-size: 28px; font-weight: 700; margin-bottom: 24px; }
+    section h3 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #a1a1aa; }
+    section p, section li { color: #a1a1aa; margin-bottom: 12px; }
+    section ul { list-style: disc; padding-left: 24px; }
+    section ol { list-style: decimal; padding-left: 24px; }
+
+    /* Steps */
+    .steps { display: flex; gap: 24px; margin: 24px 0; }
+    .step { flex: 1; background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 20px; text-align: center; }
+    .step .num { font-size: 32px; font-weight: 800; color: #6366f1; }
+    .step .label { font-size: 14px; color: #e4e4e7; margin-top: 8px; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #27272a; font-size: 14px; }
+    th { color: #a1a1aa; font-weight: 600; }
+    td code { font-size: 12px; }
+
+    /* Footer */
+    footer { padding: 48px 0; text-align: center; color: #52525b; font-size: 13px; border-top: 1px solid #27272a; }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .steps { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>daub</h1>
+      <p>Show Claude what you mean. Stop describing UI bugs.</p>
+      <div class="install">
+        <code>npm install -D vite-plugin-daub</code>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <section>
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="num">1</div>
+          <div class="label">Click — Pick any component in your running app</div>
+        </div>
+        <div class="step">
+          <div class="num">2</div>
+          <div class="label">Sketch — Annotate the screenshot or edit CSS live</div>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <div class="label">Copy — Paste rich context into Claude Code</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation (Vite) -->
+    <section>
+      <h2>Installation (Vite)</h2>
+      <pre><code>npm install -D vite-plugin-daub</code></pre>
+      <h3>vite.config.ts</h3>
+      <pre><code>import { defineConfig } from 'vite'
+import daub from 'vite-plugin-daub'
+
+export default defineConfig({
+  plugins: [daub()]
+})</code></pre>
+      <p>That's it. Start your dev server and look for the button in the bottom-right corner.</p>
+    </section>
+
+    <!-- Installation (Next.js) -->
+    <section>
+      <h2>Installation (Next.js)</h2>
+      <pre><code>npm install -D @daub/next</code></pre>
+      <h3>next.config.ts</h3>
+      <pre><code>import { withDaub } from '@daub/next'
+
+const nextConfig = {
+  // your existing config
+}
+
+export default withDaub(nextConfig)</code></pre>
+      <p>Requires adding an API route for disk writes. Use <code>next dev --no-turbo</code> (Turbopack not supported in v1).</p>
+    </section>
+
+    <!-- Options -->
+    <section>
+      <h2>Options</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>enabled</code></td>
+            <td><code>true</code></td>
+            <td>Enable/disable the overlay</td>
+          </tr>
+          <tr>
+            <td><code>outputDir</code></td>
+            <td><code>.daub-output</code></td>
+            <td>Directory for captured files</td>
+          </tr>
+          <tr>
+            <td><code>position</code></td>
+            <td><code>bottom-right</code></td>
+            <td>Trigger button position</td>
+          </tr>
+          <tr>
+            <td><code>shortcut</code></td>
+            <td><code>Alt+Shift+D</code></td>
+            <td>Keyboard shortcut to toggle</td>
+          </tr>
+          <tr>
+            <td><code>modifyGitignore</code></td>
+            <td><code>true</code></td>
+            <td>Auto-add output dir to .gitignore</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Output Format -->
+    <section>
+      <h2>Output Format</h2>
+      <p>When you click <strong>Copy to Claude</strong>, Daub generates a rich markdown context bundle and copies it to your clipboard along with the primary screenshot. Here's what the output looks like:</p>
+      <pre><code>## Component: ProductCard
+**File:** src/components/ProductCard.tsx:42
+**Element:** div.card.shadow-lg
+**DOM path:** div &gt; section &gt; article.card
+
+---
+
+### Before
+&gt; Screenshot saved to: .daub-output/k7f2a/before.png
+
+### After (your sketch)
+&gt; Screenshot saved to: .daub-output/k7f2a/after.png
+
+### Annotations
+&gt; Screenshot saved to: .daub-output/k7f2a/annotated.png
+
+---
+
+### CSS delta
+| Property | Before | After |
+|---|---|---|
+| padding | 8px | 24px |
+| gap | 4px | 16px |
+
+### Tailwind classes on element
+`flex flex-col gap-4 p-6 rounded-lg shadow-lg`
+
+### DOM subtree (depth 3)
+```html
+&lt;div class="card shadow-lg"&gt;
+  &lt;img src="/product.jpg" alt="Product" /&gt;
+  &lt;h3 class="text-lg font-bold"&gt;Product Name&lt;/h3&gt;
+  &lt;p class="text-gray-500"&gt;$29.99&lt;/p&gt;
+&lt;/div&gt;
+```
+
+### Notes
+Make the card padding larger and increase the gap between elements.
+
+---
+*Generated by Daub — .daub-output/k7f2a/*</code></pre>
+    </section>
+
+    <!-- Known Limitations -->
+    <section>
+      <h2>Known Limitations</h2>
+      <ol>
+        <li><strong>Turbopack</strong>: Not supported. Use <code>next dev --no-turbo</code>.</li>
+        <li><strong>Safari screenshot</strong>: Falls back to html2canvas (may not capture all CSS).</li>
+        <li><strong>Firefox screenshot</strong>: <code>getDisplayMedia</code> works but requires manual tab selection (no <code>preferCurrentTab</code>).</li>
+        <li><strong>Shadow DOM highlighting</strong>: Hover highlight doesn't pierce shadow roots. Click selection does.</li>
+        <li><strong>iframes</strong>: Cannot select elements inside iframes.</li>
+        <li><strong>Angular</strong>: Not supported. Browser extension will cover this in a future release.</li>
+        <li><strong>Svelte 5 (runes)</strong>: Source attribution not available.</li>
+        <li><strong>Vue</strong>: File path only, no line number in source attribution.</li>
+        <li><strong>webpack (non-Next.js)</strong>: Use the HTTP proxy approach (documented, not packaged for v1).</li>
+        <li><strong>Next.js write endpoint</strong>: Requires adding one API route file. Not zero-config.</li>
+      </ol>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      MIT License &middot; <a href="https://github.com/eneskaya/daub">GitHub</a> &middot; Built for use with <a href="https://claude.ai">Claude Code</a>
+    </footer>
+
+  </div>
+</body>
+</html>
