@@ -122,7 +122,7 @@ export class EditTab {
   async captureAfterScreenshot(): Promise<string | null> {
     if (!this.dirty) return null;
     try {
-      const { cropped } = await captureElement(this.element, false);
+      const { cropped } = await captureElement(this.element);
       return cropped;
     } catch {
       return null;

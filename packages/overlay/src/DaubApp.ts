@@ -6,7 +6,7 @@ import { TriggerButton } from './TriggerButton.js';
 import { Picker } from './Picker.js';
 import { Panel } from './Panel.js';
 import { resolveSource } from './source.js';
-import { initScreenCapture, captureElement, releaseStream } from './capture.js';
+import { captureElement } from './capture.js';
 import { copyToClipboard } from './clipboard.js';
 import { showToast } from './Toast.js';
 import { serializeToMarkdown } from '@daub/core';
@@ -16,7 +16,6 @@ export class DaubApp {
   private trigger: TriggerButton;
   private picker: Picker | null = null;
   private panel: Panel | null = null;
-  private hasScreenCapture = false;
 
   constructor(
     private shadow: ShadowRoot,
@@ -65,9 +64,6 @@ export class DaubApp {
       this.store.transition('PICKING');
       this.trigger.setActive(true);
 
-      // Request screen capture once per session (v2 B1)
-      this.hasScreenCapture = await initScreenCapture();
-
       this.picker = new Picker(
         (el) => this.onElementSelected(el),
         () => this.onCancel(),
@@ -84,8 +80,8 @@ export class DaubApp {
       this.store.transition('CAPTURED');
       this.store.element = element;
 
-      // Capture screenshot before panel opens
-      const { full, cropped } = await captureElement(element, this.hasScreenCapture);
+      // Capture screenshot before panel opens (html2canvas, no permissions needed)
+      const { full, cropped } = await captureElement(element);
       this.store.screenshotBefore = full;
       this.store.croppedScreenshot = cropped;
 
@@ -140,7 +136,7 @@ export class DaubApp {
     this.panel = null;
     this.store.reset();
     this.trigger.setActive(false);
-    releaseStream();
+
   }
 
   private async handleCopy(): Promise<void> {
@@ -169,7 +165,7 @@ export class DaubApp {
     this.picker = null;
     this.store.reset();
     this.trigger.setActive(false);
-    releaseStream();
+
   }
 
   destroy(): void {
@@ -179,7 +175,7 @@ export class DaubApp {
     this.picker = null;
     this.panel?.unmount();
     this.panel = null;
-    releaseStream();
+
     this.store.reset();
   }
 }
