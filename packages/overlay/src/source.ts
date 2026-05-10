@@ -204,11 +204,29 @@ function getComponentName(fiber: any): string {
 }
 
 // ---------------------------------------------------------------------------
-// Private: resolveVue (stub)
+// Private: resolveVue
+// File path only, no line number (Vue limitation)
 // ---------------------------------------------------------------------------
 
 function resolveVue(element: HTMLElement): SourceLocation | null {
-  const component = (element as any).__vueParentComponent;
+  // Check the element itself first
+  let component = (element as any).__vueParentComponent;
+
+  // Walk up the DOM tree (max 10 ancestors) looking for a Vue component
+  if (!component) {
+    let node: HTMLElement | null = element.parentElement;
+    let depth = 0;
+
+    while (node && depth < 10) {
+      if ((node as any).__vueParentComponent) {
+        component = (node as any).__vueParentComponent;
+        break;
+      }
+      node = node.parentElement;
+      depth++;
+    }
+  }
+
   if (!component) return null;
 
   const type = component.type;
@@ -229,15 +247,60 @@ function resolveVue(element: HTMLElement): SourceLocation | null {
 }
 
 // ---------------------------------------------------------------------------
-// Private: resolveSvelte (stub)
+// Private: resolveSvelte
+// Experimental — Svelte 4 only, Svelte 5 not supported
 // ---------------------------------------------------------------------------
 
 function resolveSvelte(element: HTMLElement): SourceLocation | null {
-  const component = (element as any).__svelte_component__;
-  if (!component) return null;
+  // Check the element itself for Svelte 4 internals
+  let comp = (element as any).__svelte_component__;
+  let meta = (element as any).__svelte_meta;
 
-  // Basic stub — Svelte does not expose source locations in the same way
-  return null;
+  // Walk up the DOM tree (max 10 ancestors) looking for Svelte component data
+  if (!comp && !meta) {
+    let node: HTMLElement | null = element.parentElement;
+    let depth = 0;
+
+    while (node && depth < 10) {
+      if ((node as any).__svelte_component__) {
+        comp = (node as any).__svelte_component__;
+        break;
+      }
+      if ((node as any).__svelte_meta) {
+        meta = (node as any).__svelte_meta;
+        break;
+      }
+      node = node.parentElement;
+      depth++;
+    }
+  }
+
+  if (!comp && !meta) {
+    // Svelte 5 runes or no Svelte component found — return null gracefully
+    return null;
+  }
+
+  const componentName: string = comp?.constructor?.name ?? 'Unknown';
+
+  // Attempt to extract file path from Svelte internals
+  let file = '';
+  if (meta?.loc?.file) {
+    file = meta.loc.file;
+  } else if (comp?.$$?.ctx) {
+    // ctx is an array; file info is not reliably stored here,
+    // fall back to the constructor name as an identifier
+    file = componentName;
+  } else {
+    file = componentName;
+  }
+
+  return {
+    file: normalizePath(file),
+    line: 0,
+    column: 0,
+    componentName,
+    framework: 'svelte',
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,11 @@
-import type { DaubConfig, ElementContext } from '@daub/core';
+import type { DaubConfig, ElementContext, DaubSession } from '@daub/core';
 import { CLOSE_ICON, SWAP_ICON, HISTORY_ICON } from './icons.js';
 import { AnnotateTab } from './tabs/AnnotateTab.js';
 import { EditTab } from './tabs/EditTab.js';
 import { OutputTab } from './tabs/OutputTab.js';
+import { HistoryTab } from './tabs/HistoryTab.js';
 
-type TabName = 'annotate' | 'edit' | 'output';
+type TabName = 'annotate' | 'edit' | 'output' | 'history';
 
 interface TabInstance {
   mount(): void;
@@ -143,16 +144,24 @@ export class Panel {
     tabBar.className = 'daub-tabs';
     tabBar.setAttribute('role', 'tablist');
 
-    const tabs: { name: TabName; label: string }[] = [
+    const tabs: { name: TabName; label: string; icon?: string }[] = [
       { name: 'annotate', label: 'Annotate' },
       { name: 'edit', label: 'Edit' },
       { name: 'output', label: 'Output' },
+      { name: 'history', label: '', icon: HISTORY_ICON },
     ];
 
     for (const tab of tabs) {
       const btn = document.createElement('button');
       btn.className = 'daub-tab';
-      btn.textContent = tab.label;
+      if (tab.icon) {
+        btn.innerHTML = tab.icon;
+        btn.title = tab.name.charAt(0).toUpperCase() + tab.name.slice(1);
+        btn.style.flex = '0';
+        btn.style.padding = '8px';
+      } else {
+        btn.textContent = tab.label;
+      }
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', tab.name === 'annotate' ? 'true' : 'false');
       btn.setAttribute('aria-controls', `daub-tab-${tab.name}`);
@@ -255,6 +264,15 @@ export class Panel {
         const sessionId = crypto.randomUUID().replace(/-/g, '');
         this.outputTab = new OutputTab(this.tabContent, ctx, sessionId);
         this.currentTabInstance = this.outputTab;
+        break;
+      }
+      case 'history': {
+        const historyTab = new HistoryTab(this.tabContent, (session: DaubSession) => {
+          // Restore a previous session
+          this.context = session.elementContext;
+          this.switchTab('annotate');
+        });
+        this.currentTabInstance = historyTab;
         break;
       }
     }

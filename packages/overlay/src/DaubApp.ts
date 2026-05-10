@@ -1,5 +1,6 @@
-import type { DaubConfig, ElementContext } from '@daub/core';
+import type { DaubConfig, ElementContext, DaubSession } from '@daub/core';
 import { captureStyles, extractTailwindClasses, serializeDOM } from '@daub/core';
+import { serializeToMarkdown } from '@daub/core';
 import { createStore } from './state.js';
 import { applyStyles } from './styles.js';
 import { TriggerButton } from './TriggerButton.js';
@@ -9,7 +10,7 @@ import { resolveSource } from './source.js';
 import { captureElement } from './capture.js';
 import { copyToClipboard } from './clipboard.js';
 import { showToast } from './Toast.js';
-import { serializeToMarkdown } from '@daub/core';
+import { saveSession } from './history.js';
 
 export class DaubApp {
   private store = createStore();
@@ -28,21 +29,22 @@ export class DaubApp {
     applyStyles(this.shadow);
     this.trigger.mount();
     this.trigger.onClick(() => this.handleTriggerClick());
-
-    // Keyboard shortcut
     document.addEventListener('keydown', this.boundKeyDown);
   }
 
+  // -- Keyboard handling ----------------------------------------------------
+
   private boundKeyDown = (e: KeyboardEvent): void => {
-    // Escape: cancel picking or close panel
     if (e.key === 'Escape') {
-      if (this.store.state === 'PANEL_OPEN') {
+      if (this.store.state === 'PICKING') {
+        // Picker handles its own Escape, but just in case
+        this.onCancel();
+      } else if (this.store.state === 'PANEL_OPEN') {
         this.closePanel();
       }
       return;
     }
 
-    // Configurable shortcut (default Alt+Shift+D)
     if (matchesShortcut(e, this.config.shortcut)) {
       e.preventDefault();
       this.handleTriggerClick();
@@ -80,27 +82,35 @@ export class DaubApp {
       this.store.transition('CAPTURED');
       this.store.element = element;
 
-      // Capture screenshot before panel opens (html2canvas, no permissions needed)
-      const { full, cropped } = await captureElement(element);
-      this.store.screenshotBefore = full;
-      this.store.croppedScreenshot = cropped;
+      // Capture screenshot
+      let screenshotData: { full: string; cropped: string };
+      try {
+        screenshotData = await captureElement(element);
+      } catch (e) {
+        console.warn('[Daub] Screenshot failed:', e);
+        showToast(this.shadow, 'Screenshot failed. Context will be text-only.', 'warning');
+        screenshotData = { full: '', cropped: '' };
+      }
 
-      // Build ElementContext
-      const source = resolveSource(element);
-      const computed = captureStyles(element);
-      const tailwind = extractTailwindClasses(element);
+      this.store.screenshotBefore = screenshotData.full;
+      this.store.croppedScreenshot = screenshotData.cropped;
+
+      // Build ElementContext — each part wrapped so one failure doesn't block the rest
+      const source = safeCall(() => resolveSource(element), null);
+      const computed = safeCall(() => captureStyles(element), {} as ReturnType<typeof captureStyles>);
+      const tailwind = safeCall(() => extractTailwindClasses(element), []);
       const rect = element.getBoundingClientRect();
 
       const context: ElementContext = {
         source,
         tagName: element.tagName.toLowerCase(),
-        domPath: getDomPath(element),
+        domPath: safeCall(() => getDomPath(element), element.tagName.toLowerCase()),
         classList: Array.from(element.classList),
-        htmlSubtree: serializeDOM(element, 3),
+        htmlSubtree: safeCall(() => serializeDOM(element, 3), `<${element.tagName.toLowerCase()} />`),
         computedStyles: computed,
         tailwindClasses: tailwind,
         rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
-        screenshotBefore: cropped,
+        screenshotBefore: screenshotData.cropped,
         screenshotAfter: null,
         screenshotAnnotated: null,
         cssDelta: [],
@@ -127,6 +137,7 @@ export class DaubApp {
       this.trigger.setActive(false);
     } catch (e) {
       console.error('[Daub] Capture failed:', e);
+      showToast(this.shadow, 'Capture failed. Please try again.', 'error');
       this.onCancel();
     }
   }
@@ -136,28 +147,36 @@ export class DaubApp {
     this.panel = null;
     this.store.reset();
     this.trigger.setActive(false);
-
   }
 
   private async handleCopy(): Promise<void> {
     const ctx = this.store.elementContext;
     if (!ctx) return;
 
-    // Gather final state
-    const annotated = this.panel?.getAnnotatedScreenshot();
-    if (annotated) ctx.screenshotAnnotated = annotated;
+    try {
+      // Gather final state
+      const annotated = this.panel?.getAnnotatedScreenshot();
+      if (annotated) ctx.screenshotAnnotated = annotated;
 
-    const sessionId = crypto.randomUUID().replace(/-/g, '');
-    const markdown = serializeToMarkdown(ctx, sessionId);
+      const sessionId = crypto.randomUUID().replace(/-/g, '');
+      const markdown = serializeToMarkdown(ctx, sessionId);
 
-    console.log('[Daub] Copying to clipboard...', { sessionId });
+      console.log('[Daub] Copying to clipboard...', { sessionId });
 
-    const result = await copyToClipboard(ctx, markdown, sessionId, this.config);
+      const result = await copyToClipboard(ctx, markdown, sessionId, this.config);
 
-    if (result.success) {
-      showToast(this.shadow, 'Copied! Paste into Claude Code.', 'success');
-    } else {
-      showToast(this.shadow, result.error ?? 'Copy failed.', 'error');
+      if (result.success) {
+        showToast(this.shadow, 'Copied! Paste into Claude Code.', 'success');
+
+        // Save to history (non-blocking)
+        const session: DaubSession = { id: sessionId, elementContext: ctx, outputMarkdown: markdown };
+        saveSession(session).catch(e => console.warn('[Daub] Failed to save session:', e));
+      } else {
+        showToast(this.shadow, result.error ?? 'Copy failed.', 'error');
+      }
+    } catch (e) {
+      console.error('[Daub] Copy failed:', e);
+      showToast(this.shadow, 'Copy failed. Use the markdown preview to copy manually.', 'error');
     }
   }
 
@@ -165,7 +184,6 @@ export class DaubApp {
     this.picker = null;
     this.store.reset();
     this.trigger.setActive(false);
-
   }
 
   destroy(): void {
@@ -175,7 +193,6 @@ export class DaubApp {
     this.picker = null;
     this.panel?.unmount();
     this.panel = null;
-
     this.store.reset();
   }
 }
@@ -215,4 +232,14 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
     e.ctrlKey === needsCtrl &&
     e.metaKey === needsMeta
   );
+}
+
+/** Call fn, return fallback on any error. Never throws. */
+function safeCall<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch (e) {
+    console.warn('[Daub]', e);
+    return fallback;
+  }
 }
