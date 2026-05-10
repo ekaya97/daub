@@ -1,0 +1,6 @@
+{
+  "name": "@daub/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome/Firefox extension for Daub (stub — coming in v1.1)"
+}

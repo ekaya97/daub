@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Daub",
+  "version": "0.1.0",
+  "description": "Visual component context tool for AI-assisted UI development",
+  "permissions": [],
+  "content_scripts": []
+}
