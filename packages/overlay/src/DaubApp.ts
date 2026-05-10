@@ -123,7 +123,7 @@ export class DaubApp {
       this.panel = new Panel(this.shadow, this.config);
       this.panel.onClose(() => this.closePanel());
       this.panel.onCopy(() => this.handleCopy());
-      this.panel.mount(context);
+      this.panel.mount(context, element);
 
       this.trigger.setActive(false);
     } catch (e) {

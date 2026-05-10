@@ -1,7 +1,7 @@
 import type { DaubConfig, ElementContext } from '@daub/core';
 import { CLOSE_ICON, SWAP_ICON, HISTORY_ICON } from './icons.js';
 import { AnnotateTab } from './tabs/AnnotateTab.js';
-import { EditTabStub } from './tabs/EditTabStub.js';
+import { EditTab } from './tabs/EditTab.js';
 import { OutputTabStub } from './tabs/OutputTabStub.js';
 
 type TabName = 'annotate' | 'edit' | 'output';
@@ -20,9 +20,10 @@ export class Panel {
   private context: ElementContext | null = null;
 
   private annotateTab: AnnotateTab | null = null;
-  private editTab: EditTabStub | null = null;
+  private editTab: EditTab | null = null;
   private outputTab: OutputTabStub | null = null;
 
+  private liveElement: HTMLElement | null = null;
   private closeHandler: (() => void) | null = null;
   private copyHandler: (() => void) | null = null;
 
@@ -39,8 +40,9 @@ export class Panel {
     this.tabContent = document.createElement('div');
   }
 
-  mount(context: ElementContext): void {
+  mount(context: ElementContext, liveElement?: HTMLElement): void {
     this.context = context;
+    this.liveElement = liveElement ?? null;
 
     // Determine which side to open on (v2 F1)
     const rect = context.rect;
@@ -236,8 +238,10 @@ export class Panel {
         break;
       }
       case 'edit': {
-        this.editTab = new EditTabStub(this.tabContent);
-        this.currentTabInstance = this.editTab;
+        if (this.liveElement) {
+          this.editTab = new EditTab(this.tabContent, this.liveElement);
+          this.currentTabInstance = this.editTab;
+        }
         break;
       }
       case 'output': {
