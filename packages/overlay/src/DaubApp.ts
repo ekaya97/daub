@@ -29,6 +29,7 @@ export class DaubApp {
     applyStyles(this.shadow);
     this.trigger.mount();
     this.trigger.onClick(() => this.handleTriggerClick());
+    this.trigger.onHistoryClick(() => this.openPanelToHistory());
     document.addEventListener('keydown', this.boundKeyDown);
   }
 
@@ -129,10 +130,22 @@ export class DaubApp {
       });
 
       // Open panel
-      this.panel = new Panel(this.shadow, this.config);
-      this.panel.onClose(() => this.closePanel());
-      this.panel.onCopy(() => this.handleCopy());
-      this.panel.mount(context, element);
+      console.log('[Daub] Opening panel...');
+      try {
+        this.panel = new Panel(this.shadow, this.config, {
+          onClose: () => this.closePanel(),
+          onCopy: () => this.handleCopy(),
+          onReselect: () => {
+            this.closePanel();
+            this.startPicking();
+          },
+        });
+        this.panel.mount(context, element);
+        console.log('[Daub] Panel mounted successfully');
+      } catch (panelErr) {
+        console.error('[Daub] Panel failed to mount:', panelErr);
+        throw panelErr;
+      }
 
       this.trigger.setActive(false);
     } catch (e) {
@@ -147,6 +160,49 @@ export class DaubApp {
     this.panel = null;
     this.store.reset();
     this.trigger.setActive(false);
+  }
+
+  private openPanelToHistory(): void {
+    if (this.store.state === 'PANEL_OPEN') {
+      // Panel is already open — just close it
+      this.closePanel();
+      return;
+    }
+
+    // Create a minimal context for history-only viewing
+    const emptyContext: ElementContext = {
+      source: null,
+      tagName: '',
+      domPath: '',
+      classList: [],
+      htmlSubtree: '',
+      computedStyles: {} as ElementContext['computedStyles'],
+      tailwindClasses: [],
+      rect: { top: 0, left: 0, width: 0, height: 0 },
+      screenshotBefore: '',
+      screenshotAfter: null,
+      screenshotAnnotated: null,
+      cssDelta: [],
+      capturedAt: Date.now(),
+      notes: '',
+    };
+
+    // Skip PICKING/CAPTURED — go straight to PANEL_OPEN
+    if (this.store.state === 'IDLE') {
+      this.store.transition('PICKING');
+      this.store.transition('CAPTURED');
+      this.store.transition('PANEL_OPEN');
+    }
+
+    this.panel = new Panel(this.shadow, this.config, {
+      onClose: () => this.closePanel(),
+      onCopy: () => this.handleCopy(),
+      onReselect: () => {
+        this.closePanel();
+        this.startPicking();
+      },
+    });
+    this.panel.mount(emptyContext, undefined, 'history');
   }
 
   private async handleCopy(): Promise<void> {

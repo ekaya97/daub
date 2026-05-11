@@ -144,10 +144,11 @@ export const DAUB_STYLES = `
 
 /* --- PANEL --- */
 .daub-panel {
-  position: absolute;
-  z-index: 210;
+  position: fixed;
+  z-index: 2147483646;
   right: 16px;
   bottom: 16px;
+  pointer-events: auto;
   width: 520px;
   height: 600px;
   max-width: calc(100% - 32px);
