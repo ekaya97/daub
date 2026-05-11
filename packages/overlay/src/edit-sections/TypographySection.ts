@@ -1,232 +1,188 @@
-const INPUT_STYLE =
-  'background:var(--daub-bg-surface);color:var(--daub-text);border:1px solid var(--daub-border);border-radius:4px;padding:4px 6px;font-size:12px;font-family:ui-monospace,monospace;';
-
-const HEADER_STYLE =
-  'font-size:11px;color:var(--daub-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;cursor:pointer;';
-
-const LABEL_STYLE =
-  'font-size:11px;color:var(--daub-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;';
-
-const WEIGHT_NAMES: Record<string, string> = {
-  '100': 'Thin',
-  '200': 'Extra Light',
-  '300': 'Light',
-  '400': 'Regular',
-  '500': 'Medium',
-  '600': 'Semi Bold',
-  '700': 'Bold',
-  '800': 'Extra Bold',
-  '900': 'Black',
-};
+import { createIcon } from '../icons.js';
 
 export class TypographySection {
-  private wrapper: HTMLDivElement | null = null;
+  private container: HTMLElement;
+  private element: HTMLElement;
   private editHandler: (() => void) | null = null;
+  private section: HTMLElement | null = null;
 
-  constructor(
-    private container: HTMLElement,
-    private element: HTMLElement,
-  ) {}
+  private initialSize = 16;
+  private initialWeight = 400;
+  private initialLineHeight = 1.5;
+  private initialLetterSpacing = 0;
 
-  mount(): void {
-    this.wrapper = document.createElement('div');
-    this.wrapper.style.marginBottom = '16px';
-
-    const header = document.createElement('div');
-    header.style.cssText = HEADER_STYLE;
-    header.textContent = 'Typography';
-    this.wrapper.appendChild(header);
-
-    const computed = getComputedStyle(this.element);
-
-    this.buildSliderRow('Size', 'fontSize', parseFloat(computed.fontSize) || 16, 8, 72, 1, 'px');
-    this.buildWeightRow(computed);
-    this.buildSliderRow(
-      'Line Height',
-      'lineHeight',
-      computed.lineHeight === 'normal' ? 1.5 : parseFloat(computed.lineHeight) / (parseFloat(computed.fontSize) || 16),
-      0.5,
-      4.0,
-      0.1,
-      '',
-    );
-    this.buildSliderRow(
-      'Spacing',
-      'letterSpacing',
-      computed.letterSpacing === 'normal' ? 0 : parseFloat(computed.letterSpacing),
-      -2,
-      10,
-      0.5,
-      'px',
-    );
-    this.buildAlignRow(computed);
-
-    this.container.appendChild(this.wrapper);
-  }
-
-  unmount(): void {
-    if (this.wrapper) {
-      this.wrapper.remove();
-      this.wrapper = null;
-    }
+  constructor(container: HTMLElement, element: HTMLElement) {
+    this.container = container;
+    this.element = element;
   }
 
   onEdit(handler: () => void): void {
     this.editHandler = handler;
   }
 
+  mount(): void {
+    const computed = getComputedStyle(this.element);
+    this.initialSize = parseInt(computed.fontSize, 10) || 16;
+    this.initialWeight = Math.round((parseInt(computed.fontWeight, 10) || 400) / 100) * 100;
+
+    const parsedLH = parseFloat(computed.lineHeight) / parseFloat(computed.fontSize);
+    this.initialLineHeight = isNaN(parsedLH) ? 1.5 : Math.round(parsedLH * 10) / 10;
+
+    const parsedLS = parseFloat(computed.letterSpacing);
+    this.initialLetterSpacing = isNaN(parsedLS) ? 0 : parsedLS;
+
+    this.section = document.createElement('div');
+    this.section.className = 'daub-edit-section';
+
+    // Header
+    const head = document.createElement('div');
+    head.className = 'daub-edit-section-head';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.appendChild(createIcon('type', 10));
+    titleSpan.appendChild(document.createTextNode('Typography'));
+    head.appendChild(titleSpan);
+
+    const dot = document.createElement('i');
+    dot.className = 'daub-edit-section-dot';
+    dot.style.display = 'none';
+    head.appendChild(dot);
+
+    this.section.appendChild(head);
+
+    const checkChanged = () => {
+      const c = getComputedStyle(this.element);
+      const curSize = parseInt(c.fontSize, 10) || 16;
+      const curWeight = Math.round((parseInt(c.fontWeight, 10) || 400) / 100) * 100;
+      const curLH = parseFloat(c.lineHeight) / parseFloat(c.fontSize);
+      const curLineHeight = isNaN(curLH) ? 1.5 : Math.round(curLH * 10) / 10;
+      const curLS = parseFloat(c.letterSpacing);
+      const curLetterSpacing = isNaN(curLS) ? 0 : curLS;
+      const changed =
+        curSize !== this.initialSize ||
+        curWeight !== this.initialWeight ||
+        curLineHeight !== this.initialLineHeight ||
+        curLetterSpacing !== this.initialLetterSpacing;
+      dot.style.display = changed ? '' : 'none';
+    };
+
+    // Row 1: Size (slider)
+    this.buildSliderRow('Size', this.initialSize, 8, 48, 1, 'px', (val) => {
+      this.element.style.fontSize = val + 'px';
+      checkChanged();
+      this.editHandler?.();
+    });
+
+    // Row 2: Weight (segmented control)
+    this.buildWeightRow(checkChanged);
+
+    // Row 3: Line H (slider)
+    this.buildSliderRow('Line H', this.initialLineHeight, 0.8, 3.0, 0.1, '', (val) => {
+      this.element.style.lineHeight = String(val);
+      checkChanged();
+      this.editHandler?.();
+    });
+
+    // Row 4: Spacing (slider)
+    this.buildSliderRow('Spacing', this.initialLetterSpacing, -2, 8, 0.5, 'px', (val) => {
+      this.element.style.letterSpacing = val + 'px';
+      checkChanged();
+      this.editHandler?.();
+    });
+
+    this.container.appendChild(this.section);
+  }
+
+  unmount(): void {
+    if (this.section) {
+      this.section.remove();
+      this.section = null;
+    }
+    this.editHandler = null;
+  }
+
   private buildSliderRow(
     label: string,
-    cssProp: string,
-    initialValue: number,
+    initial: number,
     min: number,
     max: number,
     step: number,
     unit: string,
+    onChange: (val: number) => void,
   ): void {
     const row = document.createElement('div');
-    row.style.cssText = 'margin-bottom:12px;';
+    row.className = 'daub-edit-row';
 
-    const lbl = document.createElement('div');
-    lbl.style.cssText = LABEL_STYLE;
+    const lbl = document.createElement('span');
+    lbl.className = 'daub-edit-row-label';
     lbl.textContent = label;
-
-    const controlRow = document.createElement('div');
-    controlRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
 
     const slider = document.createElement('input');
     slider.type = 'range';
+    slider.className = 'daub-slider';
     slider.min = String(min);
     slider.max = String(max);
     slider.step = String(step);
-    slider.value = String(initialValue);
-    slider.style.cssText = 'flex:1;accent-color:var(--daub-accent);';
+    slider.value = String(initial);
 
-    const numInput = document.createElement('input');
-    numInput.type = 'number';
-    numInput.min = String(min);
-    numInput.max = String(max);
-    numInput.step = String(step);
-    numInput.value = String(initialValue);
-    numInput.style.cssText = INPUT_STYLE + 'width:60px;';
-
-    const apply = (val: string) => {
-      const applyValue = cssProp === 'lineHeight' && unit === ''
-        ? val
-        : val + unit;
-      this.element.style[cssProp as any] = applyValue;
-      this.editHandler?.();
+    const formatValue = (v: number): string => {
+      const display = step < 1 ? v.toFixed(1) : String(v);
+      return unit ? display + unit : display;
     };
 
+    const valueDisplay = document.createElement('span');
+    valueDisplay.className = 'daub-edit-row-value';
+    valueDisplay.textContent = formatValue(initial);
+
     slider.addEventListener('input', () => {
-      numInput.value = slider.value;
-      apply(slider.value);
+      const val = parseFloat(slider.value);
+      valueDisplay.textContent = formatValue(val);
+      const changed = val !== initial;
+      slider.classList.toggle('changed', changed);
+      valueDisplay.classList.toggle('changed', changed);
+      onChange(val);
     });
 
-    numInput.addEventListener('input', () => {
-      slider.value = numInput.value;
-      apply(numInput.value);
-    });
-
-    controlRow.append(slider, numInput);
-    row.append(lbl, controlRow);
-    this.wrapper!.appendChild(row);
+    row.append(lbl, slider, valueDisplay);
+    this.section!.appendChild(row);
   }
 
-  private buildWeightRow(computed: CSSStyleDeclaration): void {
+  private buildWeightRow(checkChanged: () => void): void {
     const row = document.createElement('div');
-    row.style.cssText = 'margin-bottom:12px;';
+    row.className = 'daub-edit-row';
 
-    const lbl = document.createElement('div');
-    lbl.style.cssText = LABEL_STYLE;
+    const lbl = document.createElement('span');
+    lbl.className = 'daub-edit-row-label';
     lbl.textContent = 'Weight';
 
-    const controlRow = document.createElement('div');
-    controlRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
+    const seg = document.createElement('div');
+    seg.className = 'daub-edit-seg';
+    seg.style.gridColumn = '2 / -1';
 
-    const initialWeight = parseInt(computed.fontWeight, 10) || 400;
-
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = '100';
-    slider.max = '900';
-    slider.step = '100';
-    slider.value = String(initialWeight);
-    slider.style.cssText = 'flex:1;accent-color:var(--daub-accent);';
-
-    const display = document.createElement('span');
-    display.style.cssText =
-      'font-size:12px;color:var(--daub-text);white-space:nowrap;min-width:100px;';
-    display.textContent = `${initialWeight} (${WEIGHT_NAMES[String(initialWeight)] || ''})`;
-
-    slider.addEventListener('input', () => {
-      const w = slider.value;
-      const name = WEIGHT_NAMES[w] || '';
-      display.textContent = `${w} (${name})`;
-      this.element.style.fontWeight = w;
-      this.editHandler?.();
-    });
-
-    controlRow.append(slider, display);
-    row.append(lbl, controlRow);
-    this.wrapper!.appendChild(row);
-  }
-
-  private buildAlignRow(computed: CSSStyleDeclaration): void {
-    const row = document.createElement('div');
-    row.style.cssText = 'margin-bottom:12px;';
-
-    const lbl = document.createElement('div');
-    lbl.style.cssText = LABEL_STYLE;
-    lbl.textContent = 'Text Align';
-
-    const btnGroup = document.createElement('div');
-    btnGroup.style.cssText = 'display:flex;gap:4px;';
-
-    const alignments: Array<{ value: string; label: string }> = [
-      { value: 'left', label: 'L' },
-      { value: 'center', label: 'C' },
-      { value: 'right', label: 'R' },
-      { value: 'justify', label: 'J' },
-    ];
-
-    const currentAlign = computed.textAlign || 'left';
-    // Normalize: 'start' -> 'left', 'end' -> 'right'
-    const normalizedAlign =
-      currentAlign === 'start' ? 'left' : currentAlign === 'end' ? 'right' : currentAlign;
-
+    const weights = [400, 500, 600, 700];
     const buttons: HTMLButtonElement[] = [];
 
-    for (const align of alignments) {
+    for (const w of weights) {
       const btn = document.createElement('button');
-      btn.textContent = align.label;
-      btn.style.cssText =
-        'padding:4px 10px;border:1px solid var(--daub-border);border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;';
-
-      if (align.value === normalizedAlign) {
-        btn.style.background = 'var(--daub-bg-surface)';
-        btn.style.color = 'var(--daub-accent)';
-      } else {
-        btn.style.background = 'none';
-        btn.style.color = 'var(--daub-text-muted)';
+      btn.className = 'daub-edit-seg-btn';
+      btn.textContent = String(w);
+      if (w === this.initialWeight) {
+        btn.setAttribute('data-active', 'true');
       }
 
       btn.addEventListener('click', () => {
-        this.element.style.textAlign = align.value;
-        for (const b of buttons) {
-          b.style.background = 'none';
-          b.style.color = 'var(--daub-text-muted)';
-        }
-        btn.style.background = 'var(--daub-bg-surface)';
-        btn.style.color = 'var(--daub-accent)';
+        for (const b of buttons) b.removeAttribute('data-active');
+        btn.setAttribute('data-active', 'true');
+        this.element.style.fontWeight = String(w);
+        checkChanged();
         this.editHandler?.();
       });
 
       buttons.push(btn);
-      btnGroup.appendChild(btn);
+      seg.appendChild(btn);
     }
 
-    row.append(lbl, btnGroup);
-    this.wrapper!.appendChild(row);
+    row.append(lbl, seg);
+    this.section!.appendChild(row);
   }
 }
