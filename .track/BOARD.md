@@ -2,6 +2,22 @@
 
 <!-- New messages are prepended below this line -->
 ---
+**[2026-05-11T08:05:38Z] unknown** | system | note
+T-0025 complete: 121 unit tests, all passing. 9 test files across core, plugin, next.
+
+---
+**[2026-05-11T08:05:38Z] unknown** | T-0025 | status:done
+Updated T-0025 to done
+
+---
+**[2026-05-11T07:55:00Z] unknown** | system | note
+Starting T-0025: writing unit tests for core, plugin, and next packages (~80 test cases)
+
+---
+**[2026-05-11T07:55:00Z] unknown** | T-0025 | status:in-progress
+Updated T-0025 to in-progress
+
+---
 **[2026-05-10T20:53:46Z] unknown** | system | note
 Phase 7 complete: Next.js adapter (withDaub, API routes for Pages+App Router, Turbopack detection), Next.js example app, docs site.
 

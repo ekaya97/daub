@@ -1,7 +1,7 @@
 ---
 id: T-0025
 title: "P8: Unit tests (vitest)"
-status: backlog
+status: done
 priority: medium
 created: "2026-05-10T11:48:58Z"
 created_by: human
