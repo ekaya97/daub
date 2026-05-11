@@ -15,25 +15,26 @@ export class Picker {
     private onSelect: (el: HTMLElement) => void,
     private onCancel: () => void,
   ) {
-    // Full-screen transparent overlay to intercept events
+    // Full-screen dim overlay to intercept events
     this.overlay = document.createElement('div');
-    this.overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;cursor:crosshair;';
+    this.overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;cursor:crosshair;background:rgba(15, 14, 12, 0.18);';
 
-    // Highlight box
+    // Hover highlight box — dashed outline
     this.highlight = document.createElement('div');
     this.highlight.style.cssText = `
-      position:fixed; border:2px solid #6366f1; background:rgba(99,102,241,0.08);
-      border-radius:3px; pointer-events:none; transition:all 0.08s ease;
-      z-index:2147483646; display:none;
+      position:fixed; outline:1.5px dashed oklch(0.72 0.18 45); outline-offset:2px;
+      background:oklch(0.72 0.18 45 / 0.14); border-radius:4px; pointer-events:none;
+      transition:all 0.08s ease; z-index:2147483646; display:none;
     `;
 
     // Tooltip showing component name + file
     this.tooltip = document.createElement('div');
     this.tooltip.style.cssText = `
-      position:fixed; background:#18181b; color:#e4e4e7; font-size:11px;
-      font-family:ui-monospace,monospace; padding:3px 8px; border-radius:4px;
-      pointer-events:none; z-index:2147483647; display:none; white-space:nowrap;
-      box-shadow:0 2px 8px rgba(0,0,0,0.3); border:1px solid #3f3f46;
+      position:fixed; background:#16140f; color:#f5efe0; font-size:10.5px;
+      font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      padding:3px 7px; border-radius:5px; pointer-events:none; z-index:2147483647;
+      display:none; white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.4);
+      border:1px solid #3a3528;
     `;
   }
 
@@ -81,18 +82,23 @@ export class Picker {
 
     // Update highlight position
     this.highlight.style.display = 'block';
-    this.highlight.style.top = `${rect.top - 1}px`;
-    this.highlight.style.left = `${rect.left - 1}px`;
+    this.highlight.style.top = `${rect.top}px`;
+    this.highlight.style.left = `${rect.left}px`;
     this.highlight.style.width = `${rect.width}px`;
     this.highlight.style.height = `${rect.height}px`;
 
     // Resolve source for tooltip label
     const source = resolveSource(el);
     const label = source
-      ? `${source.componentName} · ${source.file.split('/').pop()}:${source.line}`
+      ? `${source.componentName} \u00B7 ${source.file.split('/').pop()}:${source.line}`
       : el.tagName.toLowerCase() + (el.className ? `.${el.className.split(' ')[0]}` : '');
 
-    this.tooltip.textContent = label;
+    // Set tooltip content with component name colored differently
+    if (source) {
+      this.tooltip.innerHTML = `<span style="color:oklch(0.74 0.18 45)">${source.componentName}</span> \u00B7 ${source.file.split('/').pop()}:${source.line}`;
+    } else {
+      this.tooltip.textContent = label;
+    }
     this.tooltip.style.display = 'block';
 
     // Tooltip positioning with viewport clamping (v2 F6)
@@ -121,6 +127,11 @@ export class Picker {
 
     const selected = target ?? this.currentTarget;
     if (!selected || selected === document.body || selected === document.documentElement) return;
+
+    // Apply selected element highlight style
+    selected.style.outline = '2px solid oklch(0.72 0.18 45)';
+    selected.style.outlineOffset = '2px';
+    selected.style.borderRadius = '4px';
 
     this.onSelect(selected);
     this.unmount();

@@ -14,7 +14,6 @@ export function showToast(
   const toast = document.createElement('div');
   toast.className = `daub-toast ${type}`;
   toast.textContent = message;
-  toast.style.animation = 'slideUp 0.2s ease-out';
 
   shadow.appendChild(toast);
   currentToast = toast;
@@ -22,9 +21,7 @@ export function showToast(
   // Auto-dismiss after 2.5s
   setTimeout(() => {
     if (currentToast === toast) {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(-50%) translateY(16px)';
-      toast.style.transition = 'opacity 0.2s, transform 0.2s';
+      toast.style.animation = 'daub-toast-out 0.2s ease-in forwards';
       setTimeout(() => {
         if (currentToast === toast) {
           toast.remove();

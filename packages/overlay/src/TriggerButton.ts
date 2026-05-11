@@ -1,86 +1,127 @@
+import { createIcon } from './icons.js';
 import type { DaubConfig } from '@daub/core';
-import { DAUB_ICON, HELP_ICON } from './icons.js';
 
 export class TriggerButton {
-  private el: HTMLButtonElement;
-  private tooltip: HTMLDivElement;
+  private el: HTMLDivElement | null = null;
+  private mainBtn: HTMLDivElement | null = null;
+  private actionBtn: HTMLButtonElement | null = null;
+  private clickHandler: (() => void) | null = null;
+  private historyClickHandler: (() => void) | null = null;
 
-  constructor(private shadow: ShadowRoot, private config: DaubConfig) {
-    this.el = document.createElement('button');
-    this.el.className = 'daub-trigger';
-    this.el.innerHTML = DAUB_ICON;
-    this.el.setAttribute('aria-label', 'Open Daub — pick a component');
-    this.applyPosition();
-
-    // Help tooltip
-    this.tooltip = document.createElement('div');
-    this.tooltip.className = 'daub-trigger-tooltip';
-    this.tooltip.innerHTML = `${HELP_ICON} Navigate to the state you want to capture, then click to pick a component.`;
-    this.tooltip.style.cssText = `
-      display: none; position: fixed; padding: 6px 10px; background: var(--daub-bg);
-      border: 1px solid var(--daub-border); border-radius: 6px; color: var(--daub-text-muted);
-      font-size: 11px; font-family: system-ui, sans-serif; max-width: 220px; line-height: 1.4;
-      pointer-events: none; z-index: 2147483647; gap: 6px; align-items: flex-start;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    `;
-
-    this.el.addEventListener('mouseenter', this.showTooltip);
-    this.el.addEventListener('mouseleave', this.hideTooltip);
-  }
+  constructor(private shadow: ShadowRoot, private config: DaubConfig) {}
 
   mount(): void {
-    this.shadow.appendChild(this.el);
-    this.shadow.appendChild(this.tooltip);
+    // Root container
+    const root = document.createElement('div');
+    root.className = 'daub-trigger';
+    if (this.config.triggerStyle === 'compact') {
+      root.classList.add('compact');
+    }
+    this.el = root;
+
+    // Main clickable area (activates picker)
+    const main = document.createElement('div');
+    main.className = 'daub-trigger-main';
+    main.setAttribute('role', 'button');
+    main.setAttribute('tabindex', '0');
+    main.setAttribute('aria-label', 'Open Daub — pick a component');
+
+    // Gradient circle mark
+    const mark = document.createElement('div');
+    mark.className = 'daub-trigger-mark';
+
+    // Label
+    const label = document.createElement('span');
+    label.className = 'daub-trigger-label';
+    label.textContent = 'daub';
+
+    // Keyboard shortcut badge
+    const kbd = document.createElement('span');
+    kbd.className = 'daub-trigger-kbd';
+    kbd.textContent = this.formatShortcut(this.config.shortcut);
+
+    main.appendChild(mark);
+    main.appendChild(label);
+    main.appendChild(kbd);
+
+    // Separator
+    const sep = document.createElement('div');
+    sep.className = 'daub-trigger-sep';
+
+    // Action button (opens history)
+    const action = document.createElement('button');
+    action.className = 'daub-trigger-action';
+    action.setAttribute('aria-label', 'Open history');
+    action.appendChild(createIcon('layers', 12));
+
+    root.appendChild(main);
+    root.appendChild(sep);
+    root.appendChild(action);
+
+    this.mainBtn = main;
+    this.actionBtn = action;
+
+    // Re-attach handlers if they were registered before mount
+    if (this.clickHandler) {
+      this.mainBtn.addEventListener('click', this.clickHandler);
+    }
+    if (this.historyClickHandler) {
+      this.actionBtn.addEventListener('click', this.historyClickHandler);
+    }
+
+    this.shadow.appendChild(root);
   }
 
   unmount(): void {
-    this.el.removeEventListener('mouseenter', this.showTooltip);
-    this.el.removeEventListener('mouseleave', this.hideTooltip);
-    this.el.remove();
-    this.tooltip.remove();
-  }
-
-  onClick(handler: () => void): void {
-    this.el.addEventListener('click', handler);
+    if (this.mainBtn && this.clickHandler) {
+      this.mainBtn.removeEventListener('click', this.clickHandler);
+    }
+    if (this.actionBtn && this.historyClickHandler) {
+      this.actionBtn.removeEventListener('click', this.historyClickHandler);
+    }
+    if (this.el) {
+      this.el.remove();
+      this.el = null;
+    }
+    this.mainBtn = null;
+    this.actionBtn = null;
   }
 
   setActive(active: boolean): void {
-    this.el.classList.toggle('active', active);
+    if (this.el) {
+      this.el.classList.toggle('selecting', active);
+    }
   }
 
-  private applyPosition(): void {
-    const pos = this.config.position;
-    this.el.style.bottom = pos.includes('bottom') ? '20px' : 'auto';
-    this.el.style.top = pos.includes('top') ? '20px' : 'auto';
-    this.el.style.right = pos.includes('right') ? '20px' : 'auto';
-    this.el.style.left = pos.includes('left') ? '20px' : 'auto';
+  onClick(handler: () => void): void {
+    this.clickHandler = handler;
+    if (this.mainBtn) {
+      this.mainBtn.addEventListener('click', handler);
+    }
   }
 
-  private showTooltip = (): void => {
-    const rect = this.el.getBoundingClientRect();
-    const pos = this.config.position;
-
-    this.tooltip.style.display = 'flex';
-
-    // Position tooltip away from the button
-    if (pos.includes('bottom')) {
-      this.tooltip.style.bottom = 'auto';
-      this.tooltip.style.top = `${rect.top - this.tooltip.offsetHeight - 8}px`;
-    } else {
-      this.tooltip.style.top = `${rect.bottom + 8}px`;
-      this.tooltip.style.bottom = 'auto';
+  onHistoryClick(handler: () => void): void {
+    this.historyClickHandler = handler;
+    if (this.actionBtn) {
+      this.actionBtn.addEventListener('click', handler);
     }
+  }
 
-    if (pos.includes('right')) {
-      this.tooltip.style.right = '20px';
-      this.tooltip.style.left = 'auto';
-    } else {
-      this.tooltip.style.left = '20px';
-      this.tooltip.style.right = 'auto';
-    }
-  };
+  private formatShortcut(shortcut: string): string {
+    const replacements: Record<string, string> = {
+      'Alt': '\u2325',
+      'Ctrl': '\u2303',
+      'Shift': '\u21E7',
+      'Meta': '\u2318',
+      'Cmd': '\u2318',
+    };
 
-  private hideTooltip = (): void => {
-    this.tooltip.style.display = 'none';
-  };
+    return shortcut
+      .split('+')
+      .map((part) => {
+        const trimmed = part.trim();
+        return replacements[trimmed] ?? trimmed;
+      })
+      .join('');
+  }
 }
