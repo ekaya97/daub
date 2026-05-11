@@ -2,6 +2,10 @@
 
 Visual component context tool for AI-assisted UI development. A Vite plugin that injects a floating widget into your dev app -- click a component, annotate it, tweak styles, and hand off rich context to Claude Code.
 
+<p align="center">
+  <img src=".github/hero.png" alt="Daub widget showing annotation tools on a component" width="700" />
+</p>
+
 ## What it does
 
 1. **Select** -- Click the trigger button, hover your app, click a component
