@@ -25,7 +25,11 @@ Visual component context tool for AI-assisted UI development. A Vite plugin that
 ## Install
 
 ```bash
+# Vite
 npm install -D vite-plugin-daub
+
+# Next.js
+npm install -D @daub/next
 ```
 
 ## Setup (Vite)
