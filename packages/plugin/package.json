@@ -1,6 +1,6 @@
 {
-  "name": "vite-plugin-daub",
-  "version": "0.1.0",
+  "name": "@daub/vite-plugin",
+  "version": "0.2.0",
   "description": "Visual component context tool for AI-assisted UI development",
   "type": "module",
   "main": "dist/index.cjs",
@@ -16,13 +16,22 @@
       "import": "./dist/overlay.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run"
   },
-  "keywords": ["vite", "vite-plugin", "ai", "devtools", "claude", "ui"],
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "ai",
+    "devtools",
+    "claude",
+    "ui"
+  ],
   "peerDependencies": {
     "vite": ">=4.0.0"
   },

@@ -4,7 +4,7 @@
   "commit": false,
   "fixed": [],
   "linked": [
-    ["@daub/core", "@daub/overlay", "vite-plugin-daub", "@daub/next"]
+    ["@daub/core", "@daub/overlay", "@daub/vite-plugin", "@daub/next"]
   ],
   "access": "public",
   "baseBranch": "main",

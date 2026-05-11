@@ -17,7 +17,7 @@ Visual component context tool for AI-assisted UI development. A Vite plugin that
 
 | Package | Description |
 |---------|-------------|
-| `vite-plugin-daub` | Vite plugin -- drop into `vite.config.ts` |
+| `@daub/vite-plugin` | Vite plugin -- drop into `vite.config.ts` |
 | `@daub/core` | Shared types, serializer, style differ |
 | `@daub/overlay` | Browser UI (shadow DOM, vanilla TS) |
 | `@daub/next` | Next.js adapter |
@@ -26,7 +26,7 @@ Visual component context tool for AI-assisted UI development. A Vite plugin that
 
 ```bash
 # Vite
-npm install -D vite-plugin-daub
+npm install -D @daub/vite-plugin
 
 # Next.js
 npm install -D @daub/next
@@ -37,7 +37,7 @@ npm install -D @daub/next
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite';
-import daub from 'vite-plugin-daub';
+import daub from '@daub/vite-plugin';
 
 export default defineConfig({
   plugins: [daub()],

@@ -1,6 +1,6 @@
 {
   "name": "@daub/next",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Next.js adapter for Daub",
   "type": "module",
   "main": "dist/index.cjs",
@@ -32,7 +32,9 @@
       "require": "./dist/provider.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -44,7 +46,7 @@
   "dependencies": {
     "@daub/core": "workspace:*",
     "@daub/overlay": "workspace:*",
-    "vite-plugin-daub": "workspace:*"
+    "@daub/vite-plugin": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

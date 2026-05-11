@@ -2,7 +2,7 @@
   "name": "daub",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @daub/core build && pnpm --filter @daub/overlay build && pnpm --filter vite-plugin-daub build && pnpm --filter @daub/next build",
+    "build": "pnpm --filter @daub/core build && pnpm --filter @daub/overlay build && pnpm --filter @daub/vite-plugin build && pnpm --filter @daub/next build",
     "dev": "pnpm --filter @daub/core dev & pnpm --filter @daub/overlay dev",
     "test": "pnpm -r test",
     "lint": "eslint packages/*/src --ext .ts"

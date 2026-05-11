@@ -33,7 +33,7 @@ export default function daub(options: DaubOptions = {}): Plugin {
   const token = randomUUID();
 
   return {
-    name: 'vite-plugin-daub',
+    name: '@daub/vite-plugin',
     apply: 'serve',
     enforce: 'post',
 
