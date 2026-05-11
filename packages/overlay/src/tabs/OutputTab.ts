@@ -1,236 +1,327 @@
+import { createIcon } from '../icons.js';
 import type { ElementContext } from '@daub/core';
-import { serializeToMarkdown } from '@daub/core';
+
+type AttachmentChip = { label: string; on: boolean };
 
 export class OutputTab {
-  private textarea: HTMLTextAreaElement | null = null;
-  private wrapper: HTMLDivElement | null = null;
+  private container: HTMLElement;
+  private context: ElementContext;
+  private sessionId: string;
+
   private lightbox: HTMLDivElement | null = null;
   private boundEscapeHandler = this.onEscape.bind(this);
+  private copyHandler: (() => void) | null = null;
+  private chips: AttachmentChip[] = [];
+  private copyBtn: HTMLButtonElement | null = null;
+  private copyTimeout: ReturnType<typeof setTimeout> | null = null;
+  private previewWrapper: HTMLDivElement | null = null;
+  private rootEl: HTMLDivElement | null = null;
 
-  constructor(
-    private container: HTMLElement,
-    private context: ElementContext,
-    private sessionId: string,
-  ) {}
+  constructor(container: HTMLElement, context: ElementContext, sessionId: string) {
+    this.container = container;
+    this.context = context;
+    this.sessionId = sessionId;
+
+    this.chips = [
+      { label: 'Screenshot', on: true },
+      { label: 'Annotated overlay', on: !!context.screenshotAnnotated },
+      { label: 'CSS diff', on: true },
+      { label: 'Source location', on: true },
+      { label: 'Tailwind classes', on: context.tailwindClasses.length > 0 },
+      { label: 'DOM subtree', on: false },
+    ];
+  }
 
   mount(): void {
-    this.wrapper = document.createElement('div');
-    this.wrapper.style.cssText =
-      'display:flex;flex-direction:column;gap:16px;padding:12px 0;overflow-y:auto;height:100%;';
+    const root = document.createElement('div');
+    root.className = 'daub-output';
+    this.rootEl = root;
 
-    // 1. Before/After thumbnails
-    this.renderThumbnails(this.wrapper);
+    // ---- Output preview (what Claude gets) ----
+    this.previewWrapper = this.buildOutputPreview();
+    root.appendChild(this.previewWrapper);
 
-    // 2. Annotations thumbnail
-    this.renderAnnotations(this.wrapper);
+    // ---- Attached section ----
+    root.appendChild(this.buildAttachedSection());
 
-    // 3. CSS Delta display
-    this.renderCssDelta(this.wrapper);
+    // ---- Action buttons ----
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px;margin-top:auto';
 
-    // 4. Notes textarea
-    this.renderNotes(this.wrapper);
+    // Save draft
+    const draftBtn = document.createElement('button');
+    draftBtn.className = 'daub-btn daub-btn-ghost';
+    draftBtn.style.flex = '0';
+    draftBtn.appendChild(createIcon('file', 12));
+    draftBtn.appendChild(document.createTextNode(' Save draft'));
+    actions.appendChild(draftBtn);
 
-    // 5. Markdown preview
-    this.renderMarkdownPreview(this.wrapper);
+    // Copy & hand off
+    this.copyBtn = document.createElement('button');
+    this.copyBtn.className = 'daub-btn daub-btn-primary';
+    this.copyBtn.style.cssText = 'flex:1;justify-content:center';
+    this.copyBtn.appendChild(createIcon('copy', 12));
+    this.copyBtn.appendChild(document.createTextNode(' Copy & hand off to Claude Code'));
 
-    this.container.appendChild(this.wrapper);
+    this.copyBtn.addEventListener('click', () => {
+      this.applyChipFilters();
+      this.copyHandler?.();
+      this.showCopiedFeedback();
+    });
+
+    actions.appendChild(this.copyBtn);
+    root.appendChild(actions);
+
+    this.container.appendChild(root);
   }
 
   unmount(): void {
     this.closeLightbox();
     document.removeEventListener('keydown', this.boundEscapeHandler);
+    if (this.copyTimeout !== null) {
+      clearTimeout(this.copyTimeout);
+      this.copyTimeout = null;
+    }
+    this.copyBtn = null;
     this.container.innerHTML = '';
-    this.textarea = null;
-    this.wrapper = null;
   }
 
-  getNotes(): string {
-    return this.textarea?.value ?? '';
-  }
-
-  getMarkdown(): string {
-    return serializeToMarkdown(this.context, this.sessionId);
+  onCopy(handler: () => void): void {
+    this.copyHandler = handler;
   }
 
   updateContext(context: ElementContext): void {
-    const notesValue = this.textarea?.value ?? '';
     this.context = context;
     this.unmount();
     this.mount();
-    // Preserve notes textarea value
-    if (this.textarea) {
-      this.textarea.value = notesValue;
-      this.context.notes = notesValue;
+  }
+
+  // ---- Builders ----
+
+  private buildOutputPreview(): HTMLDivElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'daub-output-summary';
+
+    // Head
+    const head = document.createElement('div');
+    head.className = 'daub-output-summary-head';
+
+    const headLabel = document.createElement('span');
+    headLabel.style.cssText = 'display:flex;align-items:center;gap:5px';
+    headLabel.appendChild(createIcon('diff', 11));
+    headLabel.appendChild(document.createTextNode(' output preview'));
+    head.appendChild(headLabel);
+
+    const formatTag = document.createElement('span');
+    formatTag.style.cssText = 'font-family:var(--font-mono);font-size:9.5px';
+    formatTag.textContent = 'CLIPBOARD';
+    head.appendChild(formatTag);
+
+    wrapper.appendChild(head);
+
+    // Body — scrollable document preview
+    const body = document.createElement('div');
+    body.className = 'daub-output-summary-body';
+
+    const ctx = this.context;
+    const componentName = ctx.source?.componentName || ctx.tagName;
+    const sourceFile = ctx.source?.file || 'unknown';
+    const sourceLine = ctx.source?.line;
+    const intent = ctx.notes || 'visual changes';
+
+    // Header section
+    this.addLine(body, 'target', componentName);
+    if (this.isChipOn('Source location')) {
+      this.addLine(body, 'source', sourceFile + (sourceLine ? `:${sourceLine}` : ''));
     }
-  }
+    this.addLine(body, 'intent', `"${intent}"`);
 
-  // ---- Section renderers ----
-
-  private renderThumbnails(parent: HTMLDivElement): void {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:12px;';
-
-    // Before
-    const beforeCol = document.createElement('div');
-    beforeCol.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-    beforeCol.appendChild(this.createLabel('BEFORE'));
-    beforeCol.appendChild(this.createThumbnail(this.context.screenshotBefore));
-    row.appendChild(beforeCol);
-
-    // After (conditional)
-    if (this.context.screenshotAfter !== null) {
-      const afterCol = document.createElement('div');
-      afterCol.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-      afterCol.appendChild(this.createLabel('AFTER'));
-      afterCol.appendChild(this.createThumbnail(this.context.screenshotAfter));
-      row.appendChild(afterCol);
+    // Screenshot (inline)
+    if (this.isChipOn('Screenshot') && ctx.screenshotBefore) {
+      this.addComment(body, '');
+      this.addComment(body, 'screenshot');
+      this.addInlineImage(body, ctx.screenshotBefore, 'capture');
     }
 
-    parent.appendChild(row);
-  }
+    // Annotated screenshot (inline)
+    if (this.isChipOn('Annotated overlay') && ctx.screenshotAnnotated) {
+      this.addComment(body, 'annotated overlay');
+      this.addInlineImage(body, ctx.screenshotAnnotated, 'annotated');
+    }
 
-  private renderAnnotations(parent: HTMLDivElement): void {
-    if (this.context.screenshotAnnotated === null) return;
+    // CSS deltas
+    if (this.isChipOn('CSS diff') && ctx.cssDelta.length > 0) {
+      this.addComment(body, '');
+      this.addComment(body, `${ctx.cssDelta.length} css change${ctx.cssDelta.length !== 1 ? 's' : ''}`);
 
-    const section = document.createElement('div');
-    section.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-    section.appendChild(this.createLabel('ANNOTATIONS'));
-    section.appendChild(this.createThumbnail(this.context.screenshotAnnotated));
-    parent.appendChild(section);
-  }
-
-  private renderCssDelta(parent: HTMLDivElement): void {
-    const section = document.createElement('div');
-    section.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-    section.appendChild(this.createLabel('CSS DELTA'));
-
-    if (this.context.cssDelta.length === 0) {
-      const muted = document.createElement('span');
-      muted.style.cssText = 'color:var(--daub-text-muted);font-size:12px;font-family:ui-monospace,monospace;';
-      muted.textContent = '(no edits)';
-      section.appendChild(muted);
-    } else {
-      for (const delta of this.context.cssDelta) {
-        const line = document.createElement('div');
-        line.style.cssText = 'font-family:ui-monospace,monospace;font-size:12px;color:var(--daub-text);';
-
-        const propSpan = document.createTextNode(`${delta.property}: `);
-        line.appendChild(propSpan);
-
-        const beforeSpan = document.createElement('span');
-        beforeSpan.style.cssText = 'color:var(--daub-danger);text-decoration:line-through;';
-        beforeSpan.textContent = delta.before;
-        line.appendChild(beforeSpan);
-
-        const arrow = document.createTextNode(' \u2192 ');
-        line.appendChild(arrow);
-
-        const afterSpan = document.createElement('span');
-        afterSpan.style.cssText = 'color:var(--daub-success);';
-        afterSpan.textContent = delta.after;
-        line.appendChild(afterSpan);
-
-        section.appendChild(line);
+      for (const delta of ctx.cssDelta) {
+        const deltaLine = document.createElement('div');
+        deltaLine.innerHTML =
+          `<span class="k">  ${this.escapeHtml(delta.property)}:</span> ` +
+          `<span class="diff-del">${this.escapeHtml(delta.before)}</span> \u2192 ` +
+          `<span class="diff-add">${this.escapeHtml(delta.after)}</span>`;
+        body.appendChild(deltaLine);
       }
     }
 
-    parent.appendChild(section);
+    // Tailwind classes
+    if (this.isChipOn('Tailwind classes') && ctx.tailwindClasses.length > 0) {
+      this.addComment(body, `tailwind: ${ctx.tailwindClasses.join(' ')}`);
+    }
+
+    // DOM path
+    if (ctx.domPath) {
+      this.addComment(body, '');
+      this.addLine(body, 'dom-path', ctx.domPath);
+    }
+
+    // HTML subtree
+    if (this.isChipOn('DOM subtree') && ctx.htmlSubtree) {
+      this.addComment(body, 'element html');
+      const htmlBlock = document.createElement('div');
+      htmlBlock.style.cssText = 'margin:4px 0;padding:6px 8px;background:var(--w-bg);border:1px solid var(--w-line);border-radius:4px;font-size:10.5px;white-space:pre-wrap;word-break:break-all;color:var(--w-ink-2);';
+      htmlBlock.textContent = ctx.htmlSubtree;
+      body.appendChild(htmlBlock);
+    }
+
+    wrapper.appendChild(body);
+    return wrapper;
   }
 
-  private renderNotes(parent: HTMLDivElement): void {
+  private buildAttachedSection(): HTMLDivElement {
     const section = document.createElement('div');
-    section.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-    section.appendChild(this.createLabel('NOTES'));
 
-    this.textarea = document.createElement('textarea');
-    this.textarea.placeholder = 'Add context for Claude...';
-    this.textarea.value = this.context.notes ?? '';
-    this.textarea.style.cssText =
-      'width:100%;min-height:80px;resize:vertical;background:var(--daub-bg-surface);color:var(--daub-text);border:1px solid var(--daub-border);border-radius:6px;padding:8px;font-size:13px;font-family:system-ui;outline:none;box-sizing:border-box;';
+    const heading = document.createElement('div');
+    heading.style.cssText =
+      'font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--w-ink-3,#6f6a5b);margin-bottom:6px';
+    heading.textContent = 'Attached';
+    section.appendChild(heading);
 
-    this.textarea.addEventListener('input', () => {
-      this.context.notes = this.textarea?.value ?? '';
-    });
+    const chipContainer = document.createElement('div');
+    chipContainer.className = 'daub-output-includes';
 
-    section.appendChild(this.textarea);
-    parent.appendChild(section);
-  }
+    for (const chip of this.chips) {
+      const btn = document.createElement('button');
+      btn.className = 'daub-output-chip';
+      if (!chip.on) btn.classList.add('off');
 
-  private renderMarkdownPreview(parent: HTMLDivElement): void {
-    const section = document.createElement('div');
-    section.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
+      const checkSpan = document.createElement('span');
+      checkSpan.className = 'daub-output-chip-check';
+      checkSpan.textContent = chip.on ? '\u2713' : '';
 
-    const toggle = document.createElement('div');
-    toggle.style.cssText = 'cursor:pointer;font-size:12px;color:var(--daub-text-muted);user-select:none;';
-    toggle.textContent = '\u25B6 Show full output';
+      btn.appendChild(checkSpan);
+      btn.appendChild(document.createTextNode(' ' + chip.label));
 
-    let expanded = false;
-    let preBlock: HTMLPreElement | null = null;
+      btn.addEventListener('click', () => {
+        chip.on = !chip.on;
+        btn.classList.toggle('off', !chip.on);
+        checkSpan.textContent = chip.on ? '\u2713' : '';
+        this.rebuildPreview();
+      });
 
-    toggle.addEventListener('click', () => {
-      expanded = !expanded;
-      if (expanded) {
-        toggle.textContent = '\u25BC Hide full output';
-        if (!preBlock) {
-          preBlock = document.createElement('pre');
-          preBlock.style.cssText =
-            'background:#09090b;padding:12px;border-radius:6px;font-size:11px;font-family:ui-monospace,monospace;color:var(--daub-text-muted);overflow-x:auto;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;';
-          section.appendChild(preBlock);
-        }
-        // Regenerate markdown on expand to reflect latest notes
-        preBlock.textContent = this.getMarkdown();
-        preBlock.style.display = 'block';
-      } else {
-        toggle.textContent = '\u25B6 Show full output';
-        if (preBlock) {
-          preBlock.style.display = 'none';
-        }
-      }
-    });
+      chipContainer.appendChild(btn);
+    }
 
-    section.appendChild(toggle);
-    parent.appendChild(section);
+    section.appendChild(chipContainer);
+    return section;
   }
 
   // ---- Helpers ----
 
-  private createLabel(text: string): HTMLDivElement {
-    const label = document.createElement('div');
-    label.style.cssText =
-      'font-size:10px;text-transform:uppercase;color:var(--daub-text-muted);letter-spacing:0.5px;';
-    label.textContent = text;
-    return label;
+  private isChipOn(label: string): boolean {
+    return this.chips.find(c => c.label === label)?.on ?? true;
   }
 
-  private createThumbnail(src: string): HTMLImageElement {
+  private rebuildPreview(): void {
+    if (!this.previewWrapper || !this.rootEl) return;
+    const newPreview = this.buildOutputPreview();
+    this.rootEl.replaceChild(newPreview, this.previewWrapper);
+    this.previewWrapper = newPreview;
+  }
+
+  private applyChipFilters(): void {
+    if (!this.isChipOn('Screenshot')) {
+      this.context.screenshotBefore = '';
+    }
+    if (!this.isChipOn('Annotated overlay')) {
+      this.context.screenshotAnnotated = null;
+    }
+    if (!this.isChipOn('CSS diff')) {
+      this.context.cssDelta = [];
+    }
+    if (!this.isChipOn('Source location')) {
+      this.context.source = null;
+    }
+    if (!this.isChipOn('DOM subtree')) {
+      this.context.htmlSubtree = '';
+    }
+  }
+
+  private addLine(parent: HTMLElement, key: string, value: string): void {
+    const line = document.createElement('div');
+    line.innerHTML = `<span class="k">${this.escapeHtml(key)}:</span> <span class="v">${this.escapeHtml(value)}</span>`;
+    parent.appendChild(line);
+  }
+
+  private addComment(parent: HTMLElement, text: string): void {
+    const line = document.createElement('div');
+    line.className = 'comment';
+    line.textContent = text ? `# ${text}` : '';
+    parent.appendChild(line);
+  }
+
+  private addInlineImage(parent: HTMLElement, src: string, label: string): void {
+    const imgWrap = document.createElement('div');
+    imgWrap.style.cssText = 'margin:4px 0 8px;position:relative;';
+
     const img = document.createElement('img');
     img.src = src;
-    img.style.cssText =
-      'max-width:180px;border-radius:4px;border:1px solid var(--daub-border);cursor:pointer;';
+    img.style.cssText = 'display:block;width:100%;height:auto;border-radius:4px;border:1px solid var(--w-line);cursor:pointer;';
+    img.title = `${label} — click to enlarge`;
+    img.addEventListener('click', () => this.openLightbox(src));
+    imgWrap.appendChild(img);
 
-    img.addEventListener('click', () => {
-      this.openLightbox(src);
-    });
+    // Small label badge on top-right
+    const badge = document.createElement('span');
+    badge.style.cssText = 'position:absolute;top:4px;right:4px;font-size:9px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;padding:1px 5px;border-radius:3px;background:rgba(22,20,15,0.75);color:var(--w-ink-3);';
+    badge.textContent = label;
+    imgWrap.appendChild(badge);
 
-    return img;
+    parent.appendChild(imgWrap);
   }
+
+  // ---- Copy feedback ----
+
+  private showCopiedFeedback(): void {
+    if (!this.copyBtn) return;
+
+    this.copyBtn.innerHTML = '';
+    this.copyBtn.appendChild(createIcon('check', 12));
+    this.copyBtn.appendChild(document.createTextNode(' Copied to clipboard \u2014 paste in Claude Code'));
+
+    if (this.copyTimeout !== null) clearTimeout(this.copyTimeout);
+    this.copyTimeout = setTimeout(() => {
+      if (!this.copyBtn) return;
+      this.copyBtn.innerHTML = '';
+      this.copyBtn.appendChild(createIcon('copy', 12));
+      this.copyBtn.appendChild(document.createTextNode(' Copy & hand off to Claude Code'));
+      this.copyTimeout = null;
+    }, 1800);
+  }
+
+  // ---- Lightbox ----
 
   private openLightbox(src: string): void {
     this.closeLightbox();
 
     this.lightbox = document.createElement('div');
-    this.lightbox.style.cssText =
-      'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:999999;display:flex;align-items:center;justify-content:center;';
+    this.lightbox.className = 'daub-lightbox';
 
     const img = document.createElement('img');
     img.src = src;
-    img.style.cssText = 'max-width:90vw;max-height:90vh;';
     this.lightbox.appendChild(img);
 
-    this.lightbox.addEventListener('click', () => {
-      this.closeLightbox();
-    });
-
+    this.lightbox.addEventListener('click', () => this.closeLightbox());
     document.addEventListener('keydown', this.boundEscapeHandler);
     document.body.appendChild(this.lightbox);
   }
@@ -247,5 +338,11 @@ export class OutputTab {
     if (e.key === 'Escape') {
       this.closeLightbox();
     }
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
