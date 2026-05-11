@@ -1,11 +1,13 @@
-import type { DaubConfig, ElementContext, DaubSession } from '@daub/core';
-import { CLOSE_ICON, SWAP_ICON, HISTORY_ICON } from './icons.js';
+import { createIcon } from './icons.js';
+import type { ElementContext, DaubSession, DaubConfig } from '@daub/core';
 import { AnnotateTab } from './tabs/AnnotateTab.js';
 import { EditTab } from './tabs/EditTab.js';
 import { OutputTab } from './tabs/OutputTab.js';
 import { HistoryTab } from './tabs/HistoryTab.js';
+import { EditTabStub } from './tabs/EditTabStub.js';
+import { OutputTabStub } from './tabs/OutputTabStub.js';
 
-type TabName = 'annotate' | 'edit' | 'output' | 'history';
+type TabId = 'annotate' | 'edit' | 'output' | 'history';
 
 interface TabInstance {
   mount(): void;
@@ -13,301 +15,563 @@ interface TabInstance {
 }
 
 export class Panel {
-  private el: HTMLDivElement;
-  private tabContent: HTMLDivElement;
-  private activeTab: TabName = 'annotate';
+  private el: HTMLDivElement | null = null;
+  private bodyEl: HTMLDivElement | null = null;
+  private footEl: HTMLDivElement | null = null;
+  private footHint: HTMLDivElement | null = null;
+  private footActions: HTMLDivElement | null = null;
+  private tabButtons: Map<TabId, HTMLButtonElement> = new Map();
+  private tabCountBadges: Map<TabId, HTMLSpanElement> = new Map();
+
+  private activeTab: TabId = 'annotate';
   private currentTabInstance: TabInstance | null = null;
-  private side: 'left' | 'right' = 'right';
+
   private context: ElementContext | null = null;
+  private liveElement: HTMLElement | null = null;
 
   private annotateTab: AnnotateTab | null = null;
-  private editTab: EditTab | null = null;
-  private outputTab: OutputTab | null = null;
+  private editTab: (EditTab | EditTabStub) | null = null;
+  private historyTab: HistoryTab | null = null;
 
-  private liveElement: HTMLElement | null = null;
-  private closeHandler: (() => void) | null = null;
-  private copyHandler: (() => void) | null = null;
+  private minimized = false;
 
-  // Resize state
-  private resizing = false;
-  private boundResizeMove = this.onResizeMove.bind(this);
-  private boundResizeUp = this.onResizeUp.bind(this);
+  // Panel name elements for updating on context change
+  private nameTargetSpan: HTMLSpanElement | null = null;
+  private sourceSpan: HTMLSpanElement | null = null;
+  private sourceLineSpan: HTMLSpanElement | null = null;
 
   constructor(
     private shadow: ShadowRoot,
     private config: DaubConfig,
-  ) {
-    this.el = document.createElement('div');
-    this.tabContent = document.createElement('div');
-  }
+    private callbacks: {
+      onClose: () => void;
+      onCopy: () => void;
+      onReselect: () => void;
+    },
+  ) {}
 
-  mount(context: ElementContext, liveElement?: HTMLElement): void {
+  mount(context: ElementContext, liveElement?: HTMLElement, initialTab?: 'annotate' | 'edit' | 'output' | 'history'): void {
     this.context = context;
     this.liveElement = liveElement ?? null;
 
-    // Determine which side to open on (v2 F1)
-    const rect = context.rect;
-    const elementCenter = rect.left + rect.width / 2;
-    this.side = elementCenter > window.innerWidth * 0.5 ? 'left' : 'right';
-
     this.buildDOM();
 
-    // Slide in
-    this.el.classList.add(this.side === 'right' ? 'slide-out-right' : 'slide-out-left');
-    this.shadow.appendChild(this.el);
-    // Force reflow then remove slide-out class to trigger animation
-    this.el.offsetHeight;
-    this.el.classList.remove('slide-out-right', 'slide-out-left');
+    if (this.el) {
+      this.shadow.appendChild(this.el);
+    }
 
-    // Mount default tab
-    this.switchTab('annotate');
-
-    // Restore saved width
-    const saved = localStorage.getItem('daub-panel-width');
-    if (saved) this.el.style.width = saved;
+    this.switchTab(initialTab ?? 'annotate');
   }
 
   unmount(): void {
-    // Slide out animation
-    this.el.classList.add(this.side === 'right' ? 'slide-out-right' : 'slide-out-left');
-    const onEnd = () => {
-      this.el.removeEventListener('transitionend', onEnd);
-      this.currentTabInstance?.unmount();
-      this.currentTabInstance = null;
-      this.el.remove();
-    };
-    this.el.addEventListener('transitionend', onEnd);
-    // Fallback if transition doesn't fire
-    setTimeout(onEnd, 300);
-  }
-
-  onClose(handler: () => void): void {
-    this.closeHandler = handler;
-  }
-
-  onCopy(handler: () => void): void {
-    this.copyHandler = handler;
+    this.currentTabInstance?.unmount();
+    this.currentTabInstance = null;
+    this.el?.remove();
+    this.el = null;
   }
 
   getAnnotatedScreenshot(): string | null {
     return this.annotateTab?.getAnnotatedImage() ?? null;
   }
 
-  getNotes(): string {
-    return '';
-  }
-
-  getActiveTab(): TabName {
+  getActiveTab(): TabId {
     return this.activeTab;
   }
 
-  // ---- Private ----
+  // ---- DOM Construction ----
 
   private buildDOM(): void {
     const ctx = this.context!;
-    this.el.className = `daub-panel ${this.side}`;
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-label', 'Daub component inspector');
-    this.el.setAttribute('aria-modal', 'false');
 
-    // Header
-    const header = document.createElement('div');
-    header.className = 'daub-panel-header';
+    this.el = document.createElement('div');
+    this.el.className = 'daub-panel';
 
-    const brand = document.createElement('span');
-    brand.className = 'daub-panel-brand';
-    brand.textContent = 'daub';
+    // --- Grip (draggable) ---
+    const grip = document.createElement('div');
+    grip.className = 'daub-panel-grip';
+    grip.addEventListener('pointerdown', (e) => this.onDragStart(e));
+    this.el.appendChild(grip);
 
-    const info = document.createElement('span');
-    info.className = 'daub-panel-info';
-    const name = ctx.source?.componentName ?? ctx.tagName;
-    const file = ctx.source?.file ? `${ctx.source.file.split('/').pop()}:${ctx.source.line}` : '';
-    info.textContent = file ? `${name} · ${file}` : name;
-    info.title = ctx.source?.file ?? ctx.tagName;
+    // --- Header ---
+    const head = document.createElement('div');
+    head.className = 'daub-panel-head';
 
-    const swapBtn = document.createElement('button');
-    swapBtn.className = 'daub-panel-swap';
-    swapBtn.innerHTML = SWAP_ICON;
-    swapBtn.setAttribute('aria-label', 'Swap panel side');
-    swapBtn.addEventListener('click', () => this.swapSide());
+    // Mark (logo/brand mark)
+    const mark = document.createElement('div');
+    mark.className = 'daub-panel-mark';
+    head.appendChild(mark);
 
+    // Title block
+    const titleBlock = document.createElement('div');
+    titleBlock.className = 'daub-panel-title';
+
+    // Name row: Daub / <ComponentName />
+    const nameRow = document.createElement('div');
+    nameRow.className = 'daub-panel-name';
+
+    const brandSpan = document.createElement('span');
+    brandSpan.textContent = 'Daub';
+    nameRow.appendChild(brandSpan);
+
+    const sepSpan = document.createElement('span');
+    sepSpan.className = 'daub-panel-name-sep';
+    sepSpan.textContent = '/';
+    nameRow.appendChild(sepSpan);
+
+    this.nameTargetSpan = document.createElement('span');
+    this.nameTargetSpan.className = 'daub-panel-name-target';
+    const componentName = ctx.source?.componentName ?? ctx.tagName;
+    this.nameTargetSpan.textContent = `<${componentName} />`;
+    nameRow.appendChild(this.nameTargetSpan);
+
+    titleBlock.appendChild(nameRow);
+
+    // Source file row
+    const sourceRow = document.createElement('div');
+    sourceRow.className = 'daub-panel-source';
+
+    sourceRow.appendChild(createIcon('file', 11));
+
+    this.sourceSpan = document.createElement('span');
+    const sourceFile = ctx.source?.file ?? ctx.domPath;
+    this.sourceSpan.textContent = sourceFile;
+    sourceRow.appendChild(this.sourceSpan);
+
+    this.sourceLineSpan = document.createElement('span');
+    this.sourceLineSpan.className = 'daub-panel-source-line';
+    if (ctx.source?.line) {
+      this.sourceLineSpan.textContent = `:${ctx.source.line}`;
+    }
+    sourceRow.appendChild(this.sourceLineSpan);
+
+    titleBlock.appendChild(sourceRow);
+    head.appendChild(titleBlock);
+
+    // Head actions
+    const headActions = document.createElement('div');
+    headActions.className = 'daub-head-actions';
+
+    // Reselect button
+    const reselectBtn = document.createElement('button');
+    reselectBtn.className = 'daub-icon-btn';
+    reselectBtn.title = 'Reselect target';
+    reselectBtn.appendChild(createIcon('target', 13));
+    reselectBtn.addEventListener('click', () => this.callbacks.onReselect());
+    headActions.appendChild(reselectBtn);
+
+    // Minimize button
+    const minBtn = document.createElement('button');
+    minBtn.className = 'daub-icon-btn';
+    minBtn.title = 'Minimize';
+    minBtn.appendChild(createIcon('min', 13));
+    minBtn.addEventListener('click', () => this.toggleMinimize());
+    headActions.appendChild(minBtn);
+
+    // Close button
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'daub-panel-close';
-    closeBtn.innerHTML = CLOSE_ICON;
-    closeBtn.setAttribute('aria-label', 'Close Daub panel');
-    closeBtn.addEventListener('click', () => this.closeHandler?.());
+    closeBtn.className = 'daub-icon-btn';
+    closeBtn.title = 'Close';
+    closeBtn.appendChild(createIcon('close', 13));
+    closeBtn.addEventListener('click', () => this.callbacks.onClose());
+    headActions.appendChild(closeBtn);
 
-    header.append(brand, info, swapBtn, closeBtn);
+    head.appendChild(headActions);
+    this.el.appendChild(head);
 
-    // Tabs
-    const tabBar = document.createElement('div');
-    tabBar.className = 'daub-tabs';
-    tabBar.setAttribute('role', 'tablist');
+    // --- Tabs ---
+    const tabs = document.createElement('div');
+    tabs.className = 'daub-tabs';
 
-    const tabs: { name: TabName; label: string; icon?: string }[] = [
-      { name: 'annotate', label: 'Annotate' },
-      { name: 'edit', label: 'Edit' },
-      { name: 'output', label: 'Output' },
-      { name: 'history', label: '', icon: HISTORY_ICON },
+    const tabDefs: Array<{ id: TabId; label: string; hasCount: boolean }> = [
+      { id: 'annotate', label: 'Annotate', hasCount: true },
+      { id: 'edit', label: 'Edit', hasCount: true },
+      { id: 'output', label: 'Output', hasCount: false },
+      { id: 'history', label: 'History', hasCount: true },
     ];
 
-    for (const tab of tabs) {
+    for (const def of tabDefs) {
       const btn = document.createElement('button');
       btn.className = 'daub-tab';
-      if (tab.icon) {
-        btn.innerHTML = tab.icon;
-        btn.title = tab.name.charAt(0).toUpperCase() + tab.name.slice(1);
-        btn.style.flex = '0';
-        btn.style.padding = '8px';
-      } else {
-        btn.textContent = tab.label;
+      btn.dataset.tab = def.id;
+      btn.dataset.active = def.id === 'annotate' ? 'true' : 'false';
+      btn.textContent = def.label;
+
+      if (def.hasCount) {
+        // Append a space before the badge
+        btn.append(' ');
+        const badge = document.createElement('span');
+        badge.className = 'daub-tab-num';
+        badge.textContent = '0';
+        btn.appendChild(badge);
+        this.tabCountBadges.set(def.id, badge);
       }
-      btn.setAttribute('role', 'tab');
-      btn.setAttribute('aria-selected', tab.name === 'annotate' ? 'true' : 'false');
-      btn.setAttribute('aria-controls', `daub-tab-${tab.name}`);
-      btn.dataset.tab = tab.name;
-      if (tab.name === 'annotate') btn.classList.add('active');
-      btn.addEventListener('click', () => this.switchTab(tab.name));
-      tabBar.appendChild(btn);
+
+      btn.addEventListener('click', () => this.switchTab(def.id));
+      this.tabButtons.set(def.id, btn);
+      tabs.appendChild(btn);
     }
 
-    // Arrow key navigation for tabs (v2 F10)
-    tabBar.addEventListener('keydown', (e) => {
-      const tabBtns = Array.from(tabBar.querySelectorAll('.daub-tab')) as HTMLButtonElement[];
-      const idx = tabBtns.indexOf(e.target as HTMLButtonElement);
-      if (idx === -1) return;
-      if (e.key === 'ArrowRight') {
-        const next = tabBtns[(idx + 1) % tabBtns.length];
-        next.focus();
-        next.click();
-      } else if (e.key === 'ArrowLeft') {
-        const prev = tabBtns[(idx - 1 + tabBtns.length) % tabBtns.length];
-        prev.focus();
-        prev.click();
-      }
-    });
+    // Grow spacer
+    const tabGrow = document.createElement('div');
+    tabGrow.className = 'daub-tab-grow';
+    tabs.appendChild(tabGrow);
 
-    // Tab content
-    this.tabContent.className = 'daub-tab-content';
-    this.tabContent.setAttribute('role', 'tabpanel');
+    // Status indicator
+    const tabStatus = document.createElement('div');
+    tabStatus.className = 'daub-tab-status';
 
-    // Footer
-    const footer = document.createElement('div');
-    footer.className = 'daub-panel-footer';
+    const statusDot = document.createElement('span');
+    statusDot.className = 'daub-tab-status-dot';
+    tabStatus.appendChild(statusDot);
 
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'daub-btn-primary';
-    copyBtn.textContent = 'Copy to Claude';
-    copyBtn.addEventListener('click', () => this.copyHandler?.());
+    const statusLabel = document.createElement('span');
+    const port = this.extractPort();
+    statusLabel.textContent = `vite \u00b7 :${port}`;
+    tabStatus.appendChild(statusLabel);
 
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'daub-btn-secondary';
-    clearBtn.textContent = 'Clear';
-    clearBtn.addEventListener('click', () => {
-      this.annotateTab = null;
-      this.editTab?.resetEdits();
-      if (this.activeTab === 'annotate') this.switchTab('annotate');
-    });
+    tabs.appendChild(tabStatus);
+    this.el.appendChild(tabs);
 
-    footer.append(copyBtn, clearBtn);
+    // --- Body (tab content) ---
+    this.bodyEl = document.createElement('div');
+    this.bodyEl.className = 'daub-body';
+    this.el.appendChild(this.bodyEl);
 
-    // Resize handle
-    const handle = document.createElement('div');
-    handle.className = 'daub-resize-handle';
-    handle.addEventListener('pointerdown', (e) => this.onResizeDown(e));
+    // --- Footer ---
+    this.footEl = document.createElement('div');
+    this.footEl.className = 'daub-foot';
 
-    this.el.append(header, tabBar, this.tabContent, footer, handle);
+    // Hint area
+    this.footHint = document.createElement('div');
+    this.footHint.className = 'daub-foot-hint';
+    this.footEl.appendChild(this.footHint);
+
+    // Action buttons wrapper
+    this.footActions = document.createElement('div');
+    this.footActions.style.cssText = 'display:flex;gap:8px;align-items:center;';
+
+    // Discard button
+    const discardBtn = document.createElement('button');
+    discardBtn.className = 'daub-btn daub-btn-ghost';
+    discardBtn.style.fontSize = '11px';
+    discardBtn.textContent = 'Discard';
+    discardBtn.addEventListener('click', () => this.handleDiscard());
+    this.footActions.appendChild(discardBtn);
+
+    // Hand off button
+    const handoffBtn = document.createElement('button');
+    handoffBtn.className = 'daub-btn daub-btn-primary';
+    handoffBtn.appendChild(createIcon('zap', 12));
+    handoffBtn.append(' Hand off');
+    handoffBtn.addEventListener('click', () => this.handleHandoff());
+    this.footActions.appendChild(handoffBtn);
+
+    this.footEl.appendChild(this.footActions);
+    this.el.appendChild(this.footEl);
+
+    // --- Resize handles (top, left, top-left corner) ---
+    for (const edge of ['top', 'left', 'top-left'] as const) {
+      const handle = document.createElement('div');
+      handle.className = 'daub-resize-handle';
+      handle.setAttribute('data-edge', edge);
+      handle.addEventListener('pointerdown', (e) => this.onResizeStart(e, edge));
+      this.el.appendChild(handle);
+    }
   }
 
-  private switchTab(name: TabName): void {
+  // ---- Tab Switching ----
+
+  private switchTab(tabId: TabId): void {
+    // Unmount current tab instance
     this.currentTabInstance?.unmount();
-    this.tabContent.innerHTML = '';
-    this.activeTab = name;
+    this.currentTabInstance = null;
 
-    // Update tab bar
-    const tabs = this.el.querySelectorAll('.daub-tab');
-    tabs.forEach((btn) => {
-      const isActive = (btn as HTMLElement).dataset.tab === name;
-      btn.classList.toggle('active', isActive);
-      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-    });
+    // Clear body
+    if (this.bodyEl) {
+      this.bodyEl.innerHTML = '';
+    }
 
-    this.tabContent.id = `daub-tab-${name}`;
+    this.activeTab = tabId;
+
+    // Update tab button active states
+    for (const [id, btn] of this.tabButtons) {
+      btn.dataset.active = id === tabId ? 'true' : 'false';
+    }
 
     const ctx = this.context!;
 
-    switch (name) {
+    // Create or reuse tab instances
+    switch (tabId) {
       case 'annotate': {
         if (!this.annotateTab) {
-          this.annotateTab = new AnnotateTab(this.tabContent, ctx.screenshotBefore);
+          this.annotateTab = new AnnotateTab(this.bodyEl!, ctx.screenshotBefore);
         } else {
-          this.annotateTab = new AnnotateTab(this.tabContent, ctx.screenshotBefore);
+          this.annotateTab.setContainer(this.bodyEl!);
         }
         this.currentTabInstance = this.annotateTab;
         break;
       }
       case 'edit': {
         if (this.liveElement) {
-          this.editTab = new EditTab(this.tabContent, this.liveElement);
+          if (!this.editTab || this.editTab instanceof EditTabStub) {
+            this.editTab = new EditTab(this.bodyEl!, this.liveElement, ctx.screenshotBefore);
+          } else {
+            this.editTab.setContainer(this.bodyEl!);
+          }
           this.currentTabInstance = this.editTab;
+        } else {
+          const stub = new EditTabStub(this.bodyEl!);
+          this.editTab = stub;
+          this.currentTabInstance = stub;
         }
         break;
       }
       case 'output': {
-        // Update context with latest annotations / edits before showing output
-        if (this.annotateTab?.hasAnnotations()) {
+        // Enrich context with latest annotations and edits
+        if (this.annotateTab) {
           ctx.screenshotAnnotated = this.annotateTab.getAnnotatedImage();
         }
-        if (this.editTab) {
+        if (this.editTab && 'getCssDelta' in this.editTab) {
           ctx.cssDelta = this.editTab.getCssDelta();
         }
+
         const sessionId = crypto.randomUUID().replace(/-/g, '');
-        this.outputTab = new OutputTab(this.tabContent, ctx, sessionId);
-        this.currentTabInstance = this.outputTab;
+        const outputTab = new OutputTab(this.bodyEl!, ctx, sessionId);
+        outputTab.onCopy(() => this.callbacks.onCopy());
+        this.currentTabInstance = outputTab;
         break;
       }
       case 'history': {
-        const historyTab = new HistoryTab(this.tabContent, (session: DaubSession) => {
-          // Restore a previous session
-          this.context = session.elementContext;
-          this.switchTab('annotate');
-        });
-        this.currentTabInstance = historyTab;
+        if (!this.historyTab) {
+          this.historyTab = new HistoryTab(this.bodyEl!, (session: DaubSession) => {
+            // Restore a previous session
+            this.context = session.elementContext;
+            // Reset annotate tab so it picks up the new screenshot
+            this.annotateTab = null;
+            this.switchTab('annotate');
+          });
+        } else {
+          this.historyTab = new HistoryTab(this.bodyEl!, (session: DaubSession) => {
+            this.context = session.elementContext;
+            this.annotateTab = null;
+            this.switchTab('annotate');
+          });
+        }
+        this.currentTabInstance = this.historyTab;
         break;
       }
     }
 
+    // Mount the tab
     this.currentTabInstance?.mount();
+
+    // Update footer
+    this.updateFooterHint(tabId);
+    this.updateFooterActions(tabId);
+
+    // Update count badges
+    this.updateTabCountBadges();
   }
 
-  private swapSide(): void {
-    this.side = this.side === 'right' ? 'left' : 'right';
-    this.el.classList.remove('left', 'right');
-    this.el.classList.add(this.side);
+  // ---- Footer Hints ----
+
+  private updateFooterHint(tabId: TabId): void {
+    if (!this.footHint) return;
+    this.footHint.innerHTML = '';
+
+    switch (tabId) {
+      case 'annotate':
+        this.footHint.append(
+          this.kbd('P'),
+          this.kbd('A'),
+          this.kbd('R'),
+          this.textNode(' tools \u00b7 '),
+          this.kbd('\u2318Z'),
+          this.textNode(' undo'),
+        );
+        break;
+      case 'edit':
+        this.footHint.append(
+          this.kbd('\u2191\u2193'),
+          this.textNode(' nudge \u00b7 '),
+          this.kbd('\u21E7'),
+          this.textNode(' coarse \u00b7 '),
+          this.kbd('\u2318R'),
+          this.textNode(' reset'),
+        );
+        break;
+      case 'output':
+        this.footHint.append(
+          this.kbd('\u2318\u21E7C'),
+          this.textNode(' copy & close'),
+        );
+        break;
+      case 'history':
+        this.footHint.append(
+          this.textNode(`${this.historyTab?.getSessionCount() ?? 0} daubs \u00b7 `),
+          this.kbd('\u2318K'),
+          this.textNode(' search'),
+        );
+        break;
+    }
   }
 
-  // -- Resize --
+  private updateFooterActions(tabId: TabId): void {
+    if (!this.footActions) return;
+    // Hide action buttons on output tab (output has its own copy button)
+    this.footActions.style.display = tabId === 'output' ? 'none' : 'flex';
+  }
 
-  private onResizeDown(e: PointerEvent): void {
+  // ---- Tab Count Badges ----
+
+  private updateTabCountBadges(): void {
+    const annotateBadge = this.tabCountBadges.get('annotate');
+    if (annotateBadge) {
+      const count = this.annotateTab?.getStrokeCount() ?? 0;
+      annotateBadge.textContent = String(count);
+    }
+
+    const editBadge = this.tabCountBadges.get('edit');
+    if (editBadge) {
+      let count = 0;
+      if (this.editTab && 'getCssDelta' in this.editTab) {
+        count = this.editTab.getCssDelta().length;
+      }
+      editBadge.textContent = String(count);
+    }
+
+    const historyBadge = this.tabCountBadges.get('history');
+    if (historyBadge) {
+      const count = this.historyTab?.getSessionCount() ?? 0;
+      historyBadge.textContent = String(count);
+    }
+  }
+
+  // ---- Action Handlers ----
+
+  private toggleMinimize(): void {
+    this.minimized = !this.minimized;
+    if (this.el) {
+      this.el.classList.toggle('minimized', this.minimized);
+    }
+  }
+
+  private onDragStart(e: PointerEvent): void {
     e.preventDefault();
-    this.resizing = true;
-    document.addEventListener('pointermove', this.boundResizeMove);
-    document.addEventListener('pointerup', this.boundResizeUp);
+    e.stopPropagation();
+    if (!this.el) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const rect = this.el.getBoundingClientRect();
+    const startRight = window.innerWidth - rect.right;
+    const startBottom = window.innerHeight - rect.bottom;
+    const margin = 16;
+
+    this.el.style.cursor = 'grabbing';
+    document.body.style.userSelect = 'none';
+
+    const onMove = (ev: PointerEvent) => {
+      if (!this.el) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      const panelW = this.el.offsetWidth;
+      const panelH = this.el.offsetHeight;
+
+      let newRight = startRight - dx;
+      let newBottom = startBottom - dy;
+
+      // Clamp to viewport with 16px margin
+      newRight = Math.max(margin, Math.min(newRight, window.innerWidth - panelW - margin));
+      newBottom = Math.max(margin, Math.min(newBottom, window.innerHeight - panelH - margin));
+
+      this.el.style.right = `${newRight}px`;
+      this.el.style.bottom = `${newBottom}px`;
+    };
+
+    const onUp = () => {
+      if (this.el) this.el.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
-  private onResizeMove(e: PointerEvent): void {
-    if (!this.resizing) return;
-    const width = this.side === 'right'
-      ? window.innerWidth - e.clientX
-      : e.clientX;
-    const clamped = Math.max(320, Math.min(width, window.innerWidth * 0.8));
-    this.el.style.width = `${clamped}px`;
+  private onResizeStart(e: PointerEvent, edge: 'top' | 'left' | 'top-left'): void {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!this.el) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = this.el.offsetWidth;
+    const startH = this.el.offsetHeight;
+
+    const onMove = (ev: PointerEvent) => {
+      if (!this.el) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      if (edge === 'left' || edge === 'top-left') {
+        const newW = Math.max(360, Math.min(startW - dx, window.innerWidth - 32));
+        this.el.style.width = `${newW}px`;
+      }
+      if (edge === 'top' || edge === 'top-left') {
+        const newH = Math.max(300, Math.min(startH - dy, window.innerHeight - 32));
+        this.el.style.height = `${newH}px`;
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
-  private onResizeUp(): void {
-    this.resizing = false;
-    document.removeEventListener('pointermove', this.boundResizeMove);
-    document.removeEventListener('pointerup', this.boundResizeUp);
-    localStorage.setItem('daub-panel-width', this.el.style.width);
+  private handleDiscard(): void {
+    // Close the panel entirely
+    this.callbacks.onClose();
+  }
+
+  private handleHandoff(): void {
+    // Enrich context before switching to output
+    const ctx = this.context!;
+    ctx.screenshotAnnotated = this.annotateTab?.getAnnotatedImage() ?? null;
+    if (this.editTab && 'getCssDelta' in this.editTab) {
+      ctx.cssDelta = this.editTab.getCssDelta();
+    }
+
+    // Switch to output tab
+    this.switchTab('output');
+  }
+
+  // ---- Helpers ----
+
+  private kbd(text: string): HTMLSpanElement {
+    const span = document.createElement('span');
+    span.className = 'kbd';
+    span.textContent = text;
+    return span;
+  }
+
+  private textNode(text: string): Text {
+    return document.createTextNode(text);
+  }
+
+  private extractPort(): string {
+    // Try to extract port from writeEndpoint or fall back to 5173
+    try {
+      const url = new URL(this.config.writeEndpoint);
+      return url.port || '5173';
+    } catch {
+      return '5173';
+    }
   }
 }

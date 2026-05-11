@@ -5,6 +5,7 @@ interface ResolvedOpts {
   outputDir: string;
   shortcut: string;
   modifyGitignore: boolean;
+  triggerStyle: NonNullable<DaubOptions['triggerStyle']>;
 }
 
 export function generateBootstrapScript(opts: ResolvedOpts, projectRoot: string, token: string): string {
@@ -16,6 +17,7 @@ export function generateBootstrapScript(opts: ResolvedOpts, projectRoot: string,
     token,
     shortcut: opts.shortcut,
     modifyGitignore: opts.modifyGitignore,
+    triggerStyle: opts.triggerStyle,
   };
 
   return `window.__DAUB_CONFIG__ = ${JSON.stringify(config)};`;

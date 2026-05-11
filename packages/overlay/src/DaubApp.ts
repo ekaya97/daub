@@ -136,12 +136,32 @@ export class DaubApp {
           onClose: () => this.closePanel(),
           onCopy: () => this.handleCopy(),
           onReselect: () => {
+            // Save current state to history before reselecting
+            const ctx = this.store.elementContext;
+            if (ctx) {
+              const annotated = this.panel?.getAnnotatedScreenshot();
+              if (annotated) ctx.screenshotAnnotated = annotated;
+              const session: DaubSession = {
+                id: crypto.randomUUID().replace(/-/g, ''),
+                elementContext: { ...ctx },
+                outputMarkdown: '',
+              };
+              saveSession(session).catch(e => console.warn('[Daub] Failed to save session on reselect:', e));
+            }
             this.closePanel();
             this.startPicking();
           },
         });
         this.panel.mount(context, element);
         console.log('[Daub] Panel mounted successfully');
+
+        // Auto-save initial capture to history
+        const initialSession: DaubSession = {
+          id: crypto.randomUUID().replace(/-/g, ''),
+          elementContext: { ...context },
+          outputMarkdown: '',
+        };
+        saveSession(initialSession).catch(e => console.warn('[Daub] Failed to auto-save session:', e));
       } catch (panelErr) {
         console.error('[Daub] Panel failed to mount:', panelErr);
         throw panelErr;
@@ -198,6 +218,18 @@ export class DaubApp {
       onClose: () => this.closePanel(),
       onCopy: () => this.handleCopy(),
       onReselect: () => {
+        // Save current state to history before reselecting
+        const ctx = this.store.elementContext;
+        if (ctx) {
+          const annotated = this.panel?.getAnnotatedScreenshot();
+          if (annotated) ctx.screenshotAnnotated = annotated;
+          const session: DaubSession = {
+            id: crypto.randomUUID().replace(/-/g, ''),
+            elementContext: { ...ctx },
+            outputMarkdown: '',
+          };
+          saveSession(session).catch(e => console.warn('[Daub] Failed to save session on reselect:', e));
+        }
         this.closePanel();
         this.startPicking();
       },
@@ -210,7 +242,7 @@ export class DaubApp {
     if (!ctx) return;
 
     try {
-      // Gather final state
+      // Gather annotations
       const annotated = this.panel?.getAnnotatedScreenshot();
       if (annotated) ctx.screenshotAnnotated = annotated;
 

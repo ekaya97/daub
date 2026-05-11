@@ -10,6 +10,7 @@ export function withDaub(nextConfig: any = {}, options: DaubOptions = {}) {
     position: options.position ?? 'bottom-right' as const,
     shortcut: options.shortcut ?? 'Alt+Shift+D',
     modifyGitignore: options.modifyGitignore ?? true,
+    triggerStyle: options.triggerStyle ?? 'pill' as const,
   };
 
   if (!opts.enabled) return nextConfig;
@@ -44,6 +45,7 @@ export function withDaub(nextConfig: any = {}, options: DaubOptions = {}) {
             token,
             shortcut: opts.shortcut,
             modifyGitignore: opts.modifyGitignore,
+            triggerStyle: opts.triggerStyle,
           };
 
           // Add a virtual entry that sets window.__DAUB_CONFIG__ and mounts
@@ -82,6 +84,7 @@ export function withDaub(nextConfig: any = {}, options: DaubOptions = {}) {
                 token,
                 shortcut: opts.shortcut,
                 modifyGitignore: opts.modifyGitignore,
+                triggerStyle: opts.triggerStyle,
               })),
             }),
           );

@@ -27,6 +27,7 @@ export default function daub(options: DaubOptions = {}): Plugin {
     position: options.position ?? 'bottom-right' as const,
     shortcut: options.shortcut ?? 'Alt+Shift+D',
     modifyGitignore: options.modifyGitignore ?? true,
+    triggerStyle: options.triggerStyle ?? 'pill' as const,
   };
 
   const token = randomUUID();
