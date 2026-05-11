@@ -1,5 +1,11 @@
 # @daub/core
 
+## 0.2.1
+
+### Patch Changes
+
+- Rename vite-plugin-daub to @daub/vite-plugin. Add package READMEs.
+
 ## 0.2.0
 
 ### Minor Changes
