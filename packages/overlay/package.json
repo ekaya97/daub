@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "Browser overlay for vite-plugin-daub",
   "type": "module",
-  "main": "dist/overlay.js",
+  "main": "dist/index.js",
   "exports": {
-    ".": "./dist/overlay.js"
+    ".": "./dist/index.js"
   },
   "files": [
     "dist"

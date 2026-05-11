@@ -2,7 +2,7 @@
   "name": "nextjs-example",
   "private": true,
   "scripts": {
-    "dev": "next dev --no-turbo",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start"
   },
@@ -16,6 +16,7 @@
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.7.0",
     "@daub/next": "workspace:*",
+    "@daub/overlay": "workspace:*",
     "tailwindcss": "^4.0.0",
     "@tailwindcss/postcss": "^4.0.0"
   }

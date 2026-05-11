@@ -14,7 +14,8 @@
     },
     "./client": {
       "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+      "import": "./dist/client.js",
+      "require": "./dist/client.cjs"
     },
     "./api": {
       "types": "./dist/api.d.ts",
@@ -24,6 +25,11 @@
     "./app-route": {
       "types": "./dist/app-route.d.ts",
       "import": "./dist/app-route.js"
+    },
+    "./provider": {
+      "types": "./dist/provider.d.ts",
+      "import": "./dist/provider.js",
+      "require": "./dist/provider.cjs"
     }
   },
   "files": ["dist"],
@@ -37,6 +43,7 @@
   },
   "dependencies": {
     "@daub/core": "workspace:*",
+    "@daub/overlay": "workspace:*",
     "vite-plugin-daub": "workspace:*"
   },
   "publishConfig": {

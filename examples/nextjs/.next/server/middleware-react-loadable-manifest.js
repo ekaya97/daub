@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"../../../packages/next/dist/provider.js -> @daub/overlay\":{\"id\":\"../../../packages/next/dist/provider.js -> @daub/overlay\",\"files\":[\"static/chunks/_app-pages-browser_packages_overlay_dist_index_js.js\"]}}"
