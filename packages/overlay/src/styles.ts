@@ -168,18 +168,39 @@ export const DAUB_STYLES = `
 .daub-panel.minimized .daub-tabs,
 .daub-panel.minimized .daub-body,
 .daub-panel.minimized .daub-foot { display: none; }
-.daub-panel.docked {
-  position: fixed;
-  right: 0; top: 0; bottom: 0;
-  height: 100vh;
-  max-height: 100vh;
-  border-radius: 12px 0 0 12px;
-  border-right: none;
+.daub-resize-handle {
+  position: absolute;
+  z-index: 1;
+}
+.daub-resize-handle[data-edge="top"] { top: -3px; left: 8px; right: 8px; height: 6px; cursor: n-resize; }
+.daub-resize-handle[data-edge="left"] { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: w-resize; }
+.daub-resize-handle[data-edge="top-left"] { top: -4px; left: -4px; width: 12px; height: 12px; cursor: nw-resize; }
+.daub-resize-handle[data-edge="top-left"]::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  width: 6px;
+  height: 6px;
+  border-left: 1.5px solid var(--w-ink-3);
+  border-top: 1.5px solid var(--w-ink-3);
+  opacity: 0.5;
 }
 .daub-panel-grip {
-  height: 4px;
+  height: 20px;
   background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent);
   flex-shrink: 0;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.daub-panel-grip::after {
+  content: '';
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--w-line-2);
 }
 .daub-panel-head {
   display: flex;
@@ -436,7 +457,8 @@ export const DAUB_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
+  padding: 24px;
 }
 .daub-canvas-img {
   position: relative;
@@ -445,6 +467,7 @@ export const DAUB_STYLES = `
   box-shadow: 0 8px 30px rgba(0,0,0,0.4);
   width: 86%;
   max-width: 420px;
+  flex-shrink: 0;
 }
 .daub-canvas-img-content {
   background: var(--surface);
@@ -483,70 +506,112 @@ export const DAUB_STYLES = `
 
 /* --- EDIT TAB --- */
 .daub-edit {
-  display: grid;
-  grid-template-columns: 1fr 220px;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  min-height: 0;
+  overflow-y: auto;
+  container-name: daub-edit;
+  container-type: inline-size;
 }
-.daub-edit-preview {
-  background: repeating-conic-gradient(#1a1814 0% 25%, #16140f 25% 50%) 0 0 / 16px 16px;
-  position: relative;
-  overflow: hidden;
+.daub-edit-nav {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--w-line);
+  flex-shrink: 0;
+}
+.daub-edit-nav-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
-.daub-edit-preview-frame {
-  background: var(--btn-bg, #1a1816);
-  color: var(--btn-fg, #f6f4ef);
-  border-radius: var(--btn-r, 8px);
-  padding: var(--btn-py, 8px) var(--btn-px, 16px);
-  font-family: var(--font-sans);
-  font-size: var(--btn-fs, 13px);
-  font-weight: var(--btn-fw, 500);
-  border: 1px solid transparent;
-  transition: all 0.14s ease;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-}
-.daub-edit-preview-stats {
-  position: absolute;
-  bottom: 10px; left: 12px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--w-ink-3);
-  background: rgba(15, 14, 12, 0.7);
-  padding: 3px 7px;
-  border-radius: 4px;
-  border: 1px solid var(--w-line);
-  letter-spacing: 0.02em;
-}
-.daub-edit-preview-mode {
-  position: absolute;
-  top: 10px; right: 12px;
+.daub-edit-breadcrumb {
   display: flex;
-  gap: 2px;
-  background: var(--w-bg);
-  border: 1px solid var(--w-line);
-  padding: 2px;
-  border-radius: 6px;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--w-ink-3);
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
 }
-.daub-edit-mode-btn {
-  appearance: none; border: 0; background: transparent;
+.daub-edit-breadcrumb-item {
+  cursor: default;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.daub-edit-breadcrumb-item:hover { background: var(--w-bg-2); color: var(--w-ink); }
+.daub-edit-breadcrumb-item.active { color: var(--w-accent); }
+.daub-edit-breadcrumb-sep { opacity: 0.4; }
+.daub-edit-children {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.daub-edit-child {
+  appearance: none;
+  border: 1px solid var(--w-line);
+  background: var(--w-bg-2);
+  color: var(--w-ink-2);
+  font: inherit;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.daub-edit-child:hover { border-color: var(--w-line-2); color: var(--w-ink); }
+.daub-edit-child.active { border-color: var(--w-accent); color: var(--w-accent); }
+.daub-edit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  background: var(--w-bg-2);
+  border: 1px solid var(--w-line);
+  border-radius: 6px;
+  padding: 2px;
+}
+.daub-edit-toggle-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
   color: var(--w-ink-3);
   font: inherit;
   font-size: 10.5px;
   font-family: var(--font-mono);
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 10px;
+  border-radius: 5px;
   cursor: default;
 }
-.daub-edit-mode-btn[data-active="true"] { background: var(--w-bg-3); color: var(--w-ink); }
+.daub-edit-toggle-btn[data-active="true"] { background: var(--w-bg-3); color: var(--w-ink); }
+.daub-edit-toggle-label {
+  font-size: 10.5px;
+  color: var(--w-ink-3);
+  margin-left: 4px;
+  padding-right: 4px;
+  font-family: var(--font-mono);
+}
 .daub-edit-controls {
-  background: var(--w-bg);
-  border-left: 1px solid var(--w-line);
+  flex: 1;
   overflow-y: auto;
   padding: 4px 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+}
+.daub-edit-controls > .daub-edit-section {
+  width: 100%;
+}
+@container daub-edit (min-width: 500px) {
+  .daub-edit-controls > .daub-edit-section { width: 50%; }
 }
 .daub-edit-section {
   padding: 10px 12px 8px;
@@ -649,10 +714,12 @@ export const DAUB_STYLES = `
 /* --- OUTPUT TAB --- */
 .daub-output {
   padding: 14px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 .daub-output-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .daub-output-card {
@@ -713,6 +780,10 @@ export const DAUB_STYLES = `
   font-size: 11.5px;
   color: var(--w-ink-2);
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .daub-output-summary-head {
   display: flex;
@@ -732,6 +803,9 @@ export const DAUB_STYLES = `
   gap: 2px;
   line-height: 1.55;
   font-size: 11.5px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .daub-output-summary-body .k { color: var(--w-ink-3); }
 .daub-output-summary-body .v { color: var(--w-ink); }

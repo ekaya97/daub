@@ -6,6 +6,7 @@ export interface DaubOptions {
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   shortcut?: string;
   modifyGitignore?: boolean;
+  triggerStyle?: 'pill' | 'compact';
 }
 
 // --- Runtime config (injected by plugin into window.__DAUB_CONFIG__) ---
@@ -18,6 +19,7 @@ export interface DaubConfig {
   token: string;
   shortcut: string;
   modifyGitignore: boolean;
+  triggerStyle: 'pill' | 'compact';
 }
 
 // --- Source resolution ---
