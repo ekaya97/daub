@@ -1,16 +1,12 @@
-import type { DaubSession } from '@daub/core';
-import { CLOSE_ICON } from '../icons.js';
+import { createIcon } from '../icons.js';
 import { getSessions, deleteSession, clearHistory } from '../history.js';
-
-function timeAgo(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`;
-  return `${Math.floor(seconds / 86400)} days ago`;
-}
+import type { DaubSession } from '@daub/core';
 
 export class HistoryTab {
+  private sessions: DaubSession[] = [];
+  private listEl: HTMLDivElement | null = null;
+  private searchInput: HTMLInputElement | null = null;
+
   constructor(
     private container: HTMLElement,
     private onRestore: (session: DaubSession) => void,
@@ -24,95 +20,177 @@ export class HistoryTab {
     this.container.innerHTML = '';
   }
 
+  getSessionCount(): number {
+    return this.sessions.length;
+  }
+
   private async render(): Promise<void> {
     this.container.innerHTML = '';
 
-    const sessions = await getSessions();
+    this.sessions = await getSessions();
 
-    if (sessions.length === 0) {
+    const root = document.createElement('div');
+    root.className = 'daub-history';
+
+    // --- Filter bar ---
+    const filterBar = document.createElement('div');
+    filterBar.className = 'daub-history-filter';
+
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'daub-history-search';
+    searchWrap.appendChild(createIcon('search', 11));
+
+    this.searchInput = document.createElement('input');
+    this.searchInput.placeholder = 'search by file, target, or note\u2026';
+    this.searchInput.addEventListener('input', () => this.filterList());
+    searchWrap.appendChild(this.searchInput);
+
+    filterBar.appendChild(searchWrap);
+
+    const allBtn = document.createElement('button');
+    allBtn.className = 'daub-btn daub-btn-ghost';
+    allBtn.style.cssText = 'padding:4px 8px;font-size:11px';
+    allBtn.textContent = 'all';
+    allBtn.addEventListener('click', () => {
+      if (this.searchInput) {
+        this.searchInput.value = '';
+        this.filterList();
+      }
+    });
+    filterBar.appendChild(allBtn);
+
+    root.appendChild(filterBar);
+
+    // --- List ---
+    this.listEl = document.createElement('div');
+    this.listEl.className = 'daub-history-list';
+
+    this.renderItems(this.sessions);
+
+    root.appendChild(this.listEl);
+    this.container.appendChild(root);
+  }
+
+  private filterList(): void {
+    if (!this.listEl || !this.searchInput) return;
+    const query = this.searchInput.value.trim().toLowerCase();
+    if (!query) {
+      this.renderItems(this.sessions);
+      return;
+    }
+    const filtered = this.sessions.filter((s) => {
+      const componentName = s.elementContext.source?.componentName ?? '';
+      const file = s.elementContext.source?.file ?? '';
+      const tagName = s.elementContext.tagName ?? '';
+      const notes = s.elementContext.notes ?? '';
+      const haystack = `${componentName} ${file} ${tagName} ${notes}`.toLowerCase();
+      return haystack.includes(query);
+    });
+    this.renderItems(filtered);
+  }
+
+  private renderItems(items: DaubSession[]): void {
+    if (!this.listEl) return;
+    this.listEl.innerHTML = '';
+
+    if (items.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText =
-        'display:flex;align-items:center;justify-content:center;height:100%;color:var(--daub-text-muted);font-size:13px;';
-      empty.textContent = 'No captures yet';
-      this.container.appendChild(empty);
+        'display:flex;align-items:center;justify-content:center;padding:32px 0;color:var(--w-ink-3);font-size:12px;';
+      empty.textContent = this.sessions.length === 0 ? 'No captures yet' : 'No matches';
+      this.listEl.appendChild(empty);
       return;
     }
 
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText =
-      'display:flex;flex-direction:column;gap:12px;height:100%;overflow-y:auto;padding:4px 0;';
-
-    // Card grid
-    const grid = document.createElement('div');
-    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;';
-
-    for (const session of sessions) {
-      const card = document.createElement('div');
-      card.style.cssText =
-        'position:relative;cursor:pointer;padding:8px;border-radius:6px;background:var(--daub-bg-surface);border:1px solid var(--daub-border);';
-
-      card.addEventListener('mouseenter', () => {
-        card.style.borderColor = 'var(--daub-accent)';
-      });
-      card.addEventListener('mouseleave', () => {
-        card.style.borderColor = 'var(--daub-border)';
-      });
-
-      // Click card to restore
-      card.addEventListener('click', () => {
-        this.onRestore(session);
-      });
+    for (const session of items) {
+      const item = document.createElement('div');
+      item.className = 'daub-history-item';
+      item.addEventListener('click', () => this.onRestore(session));
 
       // Thumbnail
-      const img = document.createElement('img');
-      img.src = session.elementContext.screenshotBefore;
-      img.style.cssText =
-        'display:block;max-width:160px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--daub-border);';
-      card.appendChild(img);
+      const thumb = document.createElement('div');
+      thumb.className = 'daub-history-thumb';
+      this.renderThumb(thumb, session);
+      item.appendChild(thumb);
 
-      // Component name
-      const name = document.createElement('div');
-      name.style.cssText =
-        'font-size:12px;font-weight:600;color:var(--daub-text);margin-top:4px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      name.textContent =
-        session.elementContext.source?.componentName ??
-        session.elementContext.tagName;
-      card.appendChild(name);
+      // Body
+      const body = document.createElement('div');
+      body.className = 'daub-history-body';
 
-      // Timestamp
-      const time = document.createElement('div');
-      time.style.cssText = 'font-size:11px;color:var(--daub-text-muted);';
-      time.textContent = timeAgo(session.elementContext.capturedAt);
-      card.appendChild(time);
+      const title = document.createElement('div');
+      title.className = 'daub-history-title';
+      const componentName = session.elementContext.source?.componentName ?? session.elementContext.tagName;
+      const notes = session.elementContext.notes;
+      title.textContent = notes
+        ? `${componentName} \u2014 ${notes}`
+        : componentName;
+      body.appendChild(title);
 
-      // Delete button
-      const deleteBtn = document.createElement('button');
-      deleteBtn.style.cssText =
-        'position:absolute;top:4px;right:4px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:var(--daub-bg-surface);border:1px solid var(--daub-border);border-radius:4px;cursor:pointer;color:var(--daub-text-muted);padding:0;';
-      deleteBtn.innerHTML = CLOSE_ICON;
-      deleteBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await deleteSession(session.id);
-        this.render();
-      });
-      card.appendChild(deleteBtn);
+      const meta = document.createElement('div');
+      meta.className = 'daub-history-meta';
 
-      grid.appendChild(card);
+      const sourceFile = session.elementContext.source?.file ?? session.elementContext.domPath;
+      const fileSpan = document.createElement('span');
+      fileSpan.textContent = sourceFile;
+      meta.appendChild(fileSpan);
+
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      meta.appendChild(dot);
+
+      const timeSpan = document.createElement('span');
+      timeSpan.textContent = this.timeAgo(session.elementContext.capturedAt);
+      meta.appendChild(timeSpan);
+
+      body.appendChild(meta);
+      item.appendChild(body);
+
+      // Side
+      const side = document.createElement('div');
+      side.className = 'daub-history-side';
+
+      const status = document.createElement('span');
+      status.className = 'daub-history-status';
+      status.textContent = '\u2713 saved';
+      side.appendChild(status);
+
+      item.appendChild(side);
+      this.listEl.appendChild(item);
     }
+  }
 
-    wrapper.appendChild(grid);
+  private renderThumb(container: HTMLDivElement, session: DaubSession): void {
+    const delta = session.elementContext.cssDelta;
+    const barCount = Math.max(3, Math.min(6, delta.length || 3));
+    const accentColor = 'var(--w-accent)';
 
-    // Clear all button
-    const clearBtn = document.createElement('button');
-    clearBtn.style.cssText =
-      'background:none;border:none;cursor:pointer;font-size:12px;color:var(--daub-danger);padding:4px 0;align-self:flex-start;';
-    clearBtn.textContent = 'Clear all';
-    clearBtn.addEventListener('click', async () => {
-      await clearHistory();
-      this.render();
-    });
-    wrapper.appendChild(clearBtn);
+    for (let i = 0; i < barCount; i++) {
+      const bar = document.createElement('div');
+      const heightPercent = 30 + Math.random() * 50;
+      let color: string;
+      if (delta.length > 0 && i < delta.length) {
+        // Use a hash of the property name to pick a hue variation
+        const hash = delta[i].property.length * 37 + i * 53;
+        const hue = hash % 360;
+        color = `oklch(0.65 0.12 ${hue})`;
+      } else {
+        color = accentColor;
+      }
+      bar.style.cssText = `width:4px;height:${heightPercent}%;border-radius:2px;background:${color};opacity:0.7;`;
+      container.appendChild(bar);
+    }
+  }
 
-    this.container.appendChild(wrapper);
+  private timeAgo(timestamp: number): string {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.floor(days / 7);
+    return `${weeks}w ago`;
   }
 }
